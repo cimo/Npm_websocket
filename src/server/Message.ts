@@ -4,7 +4,6 @@ import * as Https from "https";
 
 // Source
 import * as Interface from "./Interface";
-import * as Helper from "./Helper";
 
 const WEBSOCKET_MAGIC_STRING_KEY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const SEVEN_BITS_INTEGER_MARKER = 125;
@@ -19,8 +18,6 @@ const messageHandleList: Map<string, (message: Interface.Imessage) => void> = ne
 
 export const readOutput = (tag: string, callback: Interface.IcallbackReadMessage) => {
     messageHandleList.set(`cws_${tag}_o`, (message) => {
-        Helper.writeLog(`@cimo/websocket - Message.ts - readOutput()`, `tag: cws_${tag}_o - message: ${Helper.objectOutput(message)}`);
-
         callback(message);
     });
 };
@@ -28,8 +25,6 @@ export const readOutput = (tag: string, callback: Interface.IcallbackReadMessage
 export const readOutputOff = (tag: string) => {
     if (messageHandleList.has(`cws_${tag}_o`)) {
         messageHandleList.delete(`cws_${tag}_o`);
-
-        Helper.writeLog(`@cimo/websocket - Message.ts - readOutputOff()`, `messageHandleList: ${Helper.objectOutput(messageHandleList)}`);
     }
 };
 
@@ -46,8 +41,6 @@ export const sendInput = (socket: Net.Socket, tagValue: string, messageValue: Re
             message: messageValue
         };
 
-        Helper.writeLog(`@cimo/websocket - Message.ts - sendInput()`, `dataStructure: ${Helper.objectOutput(dataStructure)}`);
-
         const result = prepareMessage(JSON.stringify(dataStructure));
 
         socket.write(result);
@@ -55,8 +48,6 @@ export const sendInput = (socket: Net.Socket, tagValue: string, messageValue: Re
 };
 
 export const sendInputBroadcast = (socket: Net.Socket, tag: string, message: Record<string, unknown> | string, excludeSender = true) => {
-    Helper.writeLog("@cimo/websocket - Message.ts - sendInputBroadcast()", `tag: ${tag} - message: ${Helper.objectOutput(message)}`);
-
     for (const client of socketList) {
         if (client && !client.destroyed) {
             if ((excludeSender && client !== socket) || !excludeSender) {
@@ -66,9 +57,7 @@ export const sendInputBroadcast = (socket: Net.Socket, tag: string, message: Rec
     }
 };
 
-export const create = (server: Https.Server, pathLogValue?: string) => {
-    Helper.setPathLog(pathLogValue);
-
+export const create = (server: Https.Server) => {
     server.on("upgrade", onServerUpgrade);
 };
 
@@ -171,9 +160,14 @@ const onSocketReadable = (socket: Net.Socket) => {
 
         let data = {} as Interface.Imessage;
 
-        const checkJsonResult = Helper.checkJson(decoded);
-
-        if (checkJsonResult) {
+        if (
+            /^[\],:{}\s]*$/.test(
+                decoded
+                    .replace(/\\["\\/bfnrtu]/g, "@")
+                    .replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\\-]?\d+)?/g, "]")
+                    .replace(/(?:^|:|,)(?:\s*\[)+/g, "")
+            )
+        ) {
             data = JSON.parse(decoded) as Interface.Imessage;
         }
 
@@ -199,7 +193,7 @@ const onServerUpgrade = (request: { headers: Record<string, unknown> }, socket: 
 
     socket.write(header, (error) => {
         if (error) {
-            throw new Error(`@cimo/websocket - Message.ts - onServerUpgrade - Error: ${Helper.objectOutput(error)}`);
+            throw new Error(`@cimo/websocket - Message.ts - onServerUpgrade - Error: ${error.toString()}`);
         }
     });
 
@@ -212,4 +206,9 @@ const onServerUpgrade = (request: { headers: Record<string, unknown> }, socket: 
     sendInputBroadcast(socket, "broadcast", `Client ${socket.remoteAddress || ""} connected.`);
 };
 
-Helper.keepProcess();
+for (const event of ["uncaughtException", "unhandledRejection"]) {
+    process.on(event, (error: Error) => {
+        // eslint-disable-next-line no-console
+        console.log("@cimo/websocket - Helper.ts - keepProcess()", `Event: ${event} - Error: ${error.stack?.toString() || error.toString()}`);
+    });
+}

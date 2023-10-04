@@ -1,11 +1,9 @@
 // Source
 import * as Interface from "./Interface";
-import * as Helper from "./Helper";
 
 let websocket: WebSocket;
 let timeoutReconnect: NodeJS.Timer;
 let serverAddress: string;
-let clientDebug: boolean;
 
 const messageHandleList: Map<string, (message: Interface.Imessage) => void> = new Map();
 
@@ -16,15 +14,11 @@ export const sendMessage = (tagValue: string, messageValue: Record<string, unkno
         message: messageValue
     };
 
-    Helper.writeLog(`@cimo/websocket - Message.ts - sendMessage()`, `dataStructure: ${Helper.objectOutput(dataStructure)}`);
-
     websocket.send(JSON.stringify(dataStructure));
 };
 
 export const readMessage = (tag: string, callback: Interface.IcallbackReadMessage) => {
     messageHandleList.set(`cws_${tag}_i`, (message) => {
-        Helper.writeLog(`@cimo/websocket - Message.ts - readMessage()`, `tag: cws_${tag}_i - message: ${Helper.objectOutput(message)}`);
-
         callback(message);
     });
 };
@@ -32,18 +26,11 @@ export const readMessage = (tag: string, callback: Interface.IcallbackReadMessag
 export const readMessageOff = (tag: string) => {
     if (messageHandleList.has(`cws_${tag}_i`)) {
         messageHandleList.delete(`cws_${tag}_i`);
-
-        Helper.writeLog(`@cimo/websocket - Message.ts - readMessageOff()`, `messageHandleList: ${Helper.objectOutput(messageHandleList)}`);
     }
 };
 
-export const connection = (address?: string, debug?: boolean) => {
+export const connection = (address?: string) => {
     serverAddress = address ? address : serverAddress;
-    clientDebug = debug ? debug : clientDebug;
-
-    Helper.setDebug(clientDebug);
-
-    Helper.writeLog("@cimo/websocket - Message.ts - connection()", "Try to connect...");
 
     websocket = new WebSocket(`wss://${serverAddress}`);
 
@@ -65,8 +52,6 @@ const messageHandle = (event: MessageEvent) => {
 };
 
 const eventOpen = () => {
-    Helper.writeLog("@cimo/websocket - Message.ts - eventOpen()", "Connected.");
-
     clearTimeout(timeoutReconnect);
 };
 
