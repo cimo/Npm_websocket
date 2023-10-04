@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "outDir": "./dist/",
+        "baseUrl": "./",
+        "strict": true,
+        "importHelpers": false,
+        "experimentalDecorators": true,
+        "skipLibCheck": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "removeComments": true,
+        "noImplicitAny": false,
+        "sourceMap": true,
+        "declaration": true,
+        "stripInternal": true
+    }
+}

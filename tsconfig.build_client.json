@@ -1,0 +1,18 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "target": "ES2015",
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "lib": ["ES2015", "DOM", "DOM.Iterable"],
+        "outDir": "./dist/client/"
+    },
+    "include": ["src/client/**/*.ts"],
+    "exclude": [
+        "dist",
+        "node_modules",
+        "public",
+        "src/**/*.config.ts",
+        "src/view/cache/**/*"
+    ]
+}

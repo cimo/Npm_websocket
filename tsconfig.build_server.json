@@ -1,0 +1,11 @@
+{
+    "extends": "./tsconfig.json",
+    "include": ["src/main.ts", "src/server/**/*.ts"],
+    "exclude": [
+        "dist",
+        "node_modules",
+        "public",
+        "src/**/*.config.ts",
+        "src/view/cache/**/*"
+    ]
+}

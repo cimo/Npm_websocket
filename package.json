@@ -1,0 +1,49 @@
+{
+    "name": "@cimo/websocket",
+    "version": "1.0.11",
+    "description": "Websocket API (server and client) fast and secure.",
+    "author": "cimo",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/cimo/Websocket.git"
+    },
+    "scripts": {
+        "preinstall": "([ ! -f package-lock.json ] && npm install --package-lock-only --ignore-scripts --no-audit); npx npm-force-resolutions",
+        "check": "eslint . --fix",
+        "remove_dist": "node -e \"const fs = require('fs');try {fs.rmdirSync('./dist/',{recursive: true})} catch{};process.exit(0);\"",
+        "build": "npm run check && npm run remove_dist && tsc --build tsconfig.build_server.json && tsc --build tsconfig.build_client.json",
+        "pack": "npm run build && npm pack"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "@types/node": "18.14.4",
+        "@typescript-eslint/parser": "5.54.0",
+        "@typescript-eslint/eslint-plugin": "5.54.0",
+        "eslint": "8.35.0",
+        "eslint-plugin-prettier": "4.2.1",
+        "eslint-config-prettier": "8.8.0",
+        "prettier": "2.8.7",
+        "typescript": "4.9.4"
+    },
+    "resolutions": {
+        "node-fetch": "2.6.7",
+        "**/node-fetch": "2.6.7"
+    },
+    "files": [
+        "./dist/"
+    ],
+    "main": "./dist/main.js",
+    "types": "./dist/main.d.ts",
+    "keywords": [
+        "websocket",
+        "api",
+        "websocket api",
+        "server",
+        "client",
+        "nodejs",
+        "express",
+        "typescript",
+        "cimo"
+    ]
+}
