@@ -1,29 +1,31 @@
 // Source
 import * as Interface from "./Interface";
 
-let websocket: WebSocket;
+let websocket: WebSocket | null = null;
 let timeoutReconnect: NodeJS.Timer;
-let serverAddress: string;
+let serverAddress = "";
 
-const messageHandleList: Map<string, (message: Interface.Imessage) => void> = new Map();
+const messageHandleList: Map<string, (data: Interface.Imessage) => void> = new Map();
 
-export const sendMessage = (tagValue: string, messageValue: Record<string, unknown> | string) => {
-    const dataStructure = {
-        date: new Date().toISOString(),
-        tag: `cws_${tagValue}_o`,
-        message: messageValue
-    };
+export const sendMessage = (tagValue: string, messageValue: string | Record<string, unknown>) => {
+    if (websocket) {
+        const dataStructure = {
+            date: new Date().toISOString(),
+            tag: `cws_${tagValue}_o`,
+            message: messageValue
+        };
 
-    websocket.send(JSON.stringify(dataStructure));
+        websocket.send(JSON.stringify(dataStructure));
+    }
 };
 
-export const readMessage = (tag: string, callback: Interface.IcallbackReadMessage) => {
-    messageHandleList.set(`cws_${tag}_i`, (message) => {
-        callback(message);
+export const receiveMessage = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
+    messageHandleList.set(`cws_${tag}_i`, (data) => {
+        callback(data);
     });
 };
 
-export const readMessageOff = (tag: string) => {
+export const receiveMessageOff = (tag: string) => {
     if (messageHandleList.has(`cws_${tag}_i`)) {
         messageHandleList.delete(`cws_${tag}_i`);
     }
@@ -52,6 +54,9 @@ const messageHandle = (event: MessageEvent) => {
 };
 
 const eventOpen = () => {
+    // eslint-disable-next-line no-console
+    console.log("@cimo/websocket - Message.ts - eventOpen():", "Connected.");
+
     clearTimeout(timeoutReconnect);
 };
 
@@ -60,9 +65,16 @@ const eventMessage = (event: MessageEvent) => {
 };
 
 const eventClose = () => {
-    websocket.removeEventListener("open", eventOpen);
-    websocket.removeEventListener("message", eventMessage);
-    websocket.removeEventListener("close", eventClose);
+    if (websocket) {
+        // eslint-disable-next-line no-console
+        console.log("@cimo/websocket - Message.ts - eventClose():", "Try to reconnect...");
 
-    timeoutReconnect = setTimeout(connection, 1000);
+        websocket.removeEventListener("open", eventOpen);
+        websocket.removeEventListener("message", eventMessage);
+        websocket.removeEventListener("close", eventClose);
+
+        websocket = null;
+
+        timeoutReconnect = setTimeout(connection, 1000);
+    }
 };

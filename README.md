@@ -22,29 +22,35 @@ Websocket API (server and client) fast and secure.
 import { CwsServerMessage } from "@cimo/websocket";
 
 // Source
-import * as ControllerRun from "../controller/Run";
+import * as ControllerTest from "../controller/Test";
 
 ...
 
 CwsServerMessage.create(server);
-CwsServerMessage.readOutput("run", (data) => {
-    ControllerRun.websocket(data);
+
+CwsServerMessage.receiveOutput("test", (socket, data) => {
+    ControllerTest.websocket(socket, data);
 });
 
 ...
 ```
 
--   ControllerRun.ts
+-   ControllerTest.ts
 
 ```
 ...
 
-import { CwsServerInterface } from "@cimo/websocket";
+import { CwsServerInterface, CwsServerMessage } from "@cimo/websocket";
 
 ...
 
-export const websocket = (data: CwsServerInterface.Imessage) => {
-    console.log("run", data);
+export const websocket = (socket: CwsServerInterface.Isocket, data: CwsServerInterface.Imessage) => {
+    const tag = data.tag;
+    const message = data.message;
+
+    if (tag === "cws_test_o") {
+        CwsServerMessage.sendInput(socket, "test", message);
+    }
 };
 
 ...
@@ -61,20 +67,20 @@ import * as CwsClient from "@cimo/websocket/dist/client/Message";
 
 ...
 
-CwsClient.connection("localhost:1002");
+CwsClient.connection(window.location.host);
 
-CwsClient.readMessage("broadcast", () => {
-    // global event
+CwsClient.receiveMessage("broadcast", (data) => {
+    // Global event
 });
 
-CwsClient.readMessage("run", () => {
-    // run event
+CwsClient.receiveMessage("test", (data) => {
+    // Test event
 });
 
 ...
 
 elementButton.addEventListener("click", (event) => {
-    CwsClient.sendMessage("run", { test: 1 });
+    CwsClient.sendMessage("test", { value: 1 });
 });
 
 ...

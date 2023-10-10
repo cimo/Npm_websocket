@@ -1,6 +1,4 @@
 import * as Crypto from "crypto";
-import * as Net from "net";
-import * as Https from "https";
 
 // Source
 import * as Interface from "./Interface";
@@ -8,36 +6,29 @@ import * as Interface from "./Interface";
 const WEBSOCKET_MAGIC_STRING_KEY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const SEVEN_BITS_INTEGER_MARKER = 125;
 const SIXTEEN_BITS_INTEGER_MARKER = 126;
-const MAXIMUM_SIXTEEN_BITS_INTEGER = 2 ** 16;
+const THIRTYTWO_BITS_INTEGER_MARKER = 127;
 const MASK_KEY_BYTES_LENGTH = 4;
-const OPCODE_TEXT = 0x01;
-const FIRST_BIT = 128;
 
-const socketList: Net.Socket[] = [];
-const messageHandleList: Map<string, (message: Interface.Imessage) => void> = new Map();
+const socketList: Interface.Isocket[] = [];
+const messageHandleList: Map<string, (socket: Interface.Isocket, data: Interface.Imessage) => void> = new Map();
 
-export const readOutput = (tag: string, callback: Interface.IcallbackReadMessage) => {
-    messageHandleList.set(`cws_${tag}_o`, (message) => {
-        callback(message);
+export const receiveOutput = (tag: string, callback: Interface.IcallbackReceiveOutput) => {
+    messageHandleList.set(`cws_${tag}_o`, (socket, data) => {
+        callback(socket, data);
     });
 };
 
-export const readOutputOff = (tag: string) => {
+export const receiveOutputOff = (tag: string) => {
     if (messageHandleList.has(`cws_${tag}_o`)) {
         messageHandleList.delete(`cws_${tag}_o`);
     }
 };
 
-export const sendInput = (socket: Net.Socket, tagValue: string, messageValue: Record<string, unknown> | string) => {
+export const sendInput = (socket: Interface.Isocket, tagValue: string, messageValue: string | Record<string, unknown>) => {
     if (tagValue) {
-        const tagValueSplit = tagValue.split("_");
-        tagValueSplit.shift();
-        tagValueSplit.pop();
-        const tagValueJoin = tagValueSplit.join("_");
-
         const dataStructure = {
             date: new Date().toISOString(),
-            tag: `cws_${tagValueJoin}_i`,
+            tag: `cws_${tagValue}_i`,
             message: messageValue
         };
 
@@ -47,28 +38,18 @@ export const sendInput = (socket: Net.Socket, tagValue: string, messageValue: Re
     }
 };
 
-export const sendInputBroadcast = (socket: Net.Socket, tag: string, message: Record<string, unknown> | string, excludeSender = true) => {
+export const sendInputBroadcast = (socket: Interface.Isocket, tag: string, message: string | Record<string, unknown>, excludeSender = true) => {
     for (const client of socketList) {
         if (client && !client.destroyed) {
             if ((excludeSender && client !== socket) || !excludeSender) {
-                sendInput(client, `cws_${tag}_i`, message);
+                sendInput(client, tag, message);
             }
         }
     }
 };
 
-export const create = (server: Https.Server) => {
+export const create = (server: Interface.HttpsServer) => {
     server.on("upgrade", onServerUpgrade);
-};
-
-const messageHandle = (data: Interface.Imessage) => {
-    for (const [tag, eventHandler] of messageHandleList) {
-        if (data.tag === tag) {
-            eventHandler(data);
-
-            return;
-        }
-    }
 };
 
 const prepareMessage = (data: string) => {
@@ -77,15 +58,14 @@ const prepareMessage = (data: string) => {
 
     let dataBuffer: Buffer;
 
-    const firstByte = 0x80 | OPCODE_TEXT;
+    const firstByte = 0x80 | 0x01;
 
     if (messageSize <= SEVEN_BITS_INTEGER_MARKER) {
         const bytes = [firstByte];
 
         dataBuffer = Buffer.from(bytes.concat(messageSize));
-    } else if (messageSize <= MAXIMUM_SIXTEEN_BITS_INTEGER) {
-        const offsetFourBytes = 4;
-        const target = Buffer.allocUnsafe(offsetFourBytes);
+    } else if (messageSize <= 2 ** 16) {
+        const target = Buffer.allocUnsafe(4);
 
         target[0] = firstByte;
         target[1] = SIXTEEN_BITS_INTEGER_MARKER | 0x0;
@@ -110,74 +90,76 @@ const prepareMessage = (data: string) => {
     return result;
 };
 
-const unmask = (encodedBuffer: Buffer, maskKey: Buffer) => {
-    const finalBuffer = Buffer.from(encodedBuffer);
+const messageHandle = (socket: Interface.Isocket, data: Interface.Imessage) => {
+    for (const [tag, eventHandler] of messageHandleList) {
+        if (data.tag === tag) {
+            eventHandler(socket, data);
 
-    for (let index = 0; index < encodedBuffer.length; index++) {
-        finalBuffer[index] = encodedBuffer[index] ^ maskKey[index % MASK_KEY_BYTES_LENGTH];
+            return;
+        }
     }
-
-    return finalBuffer;
 };
 
-const onSocketEnd = (socket: Net.Socket) => {
+const onSocketEnd = (socket: Interface.Isocket) => {
     sendInputBroadcast(socket, "broadcast", `Client ${socket.remoteAddress || ""} disconnected.`);
 
     const index = socketList.indexOf(socket);
 
-    if (index !== -1) {
+    if (index > -1) {
         socketList.splice(index, 1);
     }
 
     socket.destroy();
 };
 
-const onSocketReadable = (socket: Net.Socket) => {
-    socket.read(1);
+const onSocketData = (socket: Interface.Isocket, buffer: Buffer) => {
+    let data = {} as Interface.Imessage;
 
-    const socketRead = socket.read(1) as [number];
+    let payloadLength = buffer[1] & 0x7f;
+    let payloadOffset = 2;
+    const opcode = buffer[0] & 0x0f;
+    const isMasked = (buffer[1] & 0x80) !== 0;
 
-    if (socketRead !== null) {
-        const [markerAndPayloadLength] = socketRead;
+    if (payloadLength === SIXTEEN_BITS_INTEGER_MARKER) {
+        payloadLength = buffer.readUInt16BE(2);
+        payloadOffset = 4;
+    } else if (payloadLength === THIRTYTWO_BITS_INTEGER_MARKER) {
+        payloadLength = buffer.readUInt32BE(2);
+        payloadOffset = 10;
+    }
 
-        const lengthIndicatorInBits = markerAndPayloadLength - FIRST_BIT;
+    if (isMasked) {
+        const maskingKey = buffer.slice(payloadOffset, payloadOffset + MASK_KEY_BYTES_LENGTH);
+        payloadOffset += MASK_KEY_BYTES_LENGTH;
 
-        let messageLength = 0;
-
-        if (lengthIndicatorInBits <= SEVEN_BITS_INTEGER_MARKER) {
-            messageLength = lengthIndicatorInBits;
-        } else if (lengthIndicatorInBits === SIXTEEN_BITS_INTEGER_MARKER) {
-            const socketRead = socket.read(2) as Buffer;
-
-            messageLength = socketRead.readUint16BE(0);
-        } else {
-            throw new Error("@cimo/websocket - Message.ts - onSocketReadable - Error: Message too long.");
+        for (let i = 0; i < payloadLength; i++) {
+            buffer[payloadOffset + i] ^= maskingKey[i % MASK_KEY_BYTES_LENGTH];
         }
+    }
 
-        const maskKey = socket.read(MASK_KEY_BYTES_LENGTH) as Buffer;
-        const encoded = socket.read(messageLength) as Buffer;
-        const decoded = unmask(encoded, maskKey).toString("utf8");
+    const payloadData = buffer.slice(payloadOffset, payloadOffset + payloadLength);
 
-        let data = {} as Interface.Imessage;
+    if (opcode === 0x01) {
+        const payloadOutput = payloadData.toString("utf-8");
 
         if (
             /^[\],:{}\s]*$/.test(
-                decoded
+                payloadOutput
                     .replace(/\\["\\/bfnrtu]/g, "@")
                     .replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\\-]?\d+)?/g, "]")
                     .replace(/(?:^|:|,)(?:\s*\[)+/g, "")
             )
         ) {
-            data = JSON.parse(decoded) as Interface.Imessage;
+            data = JSON.parse(payloadOutput) as Interface.Imessage;
         }
-
-        messageHandle(data);
     }
+
+    messageHandle(socket, data);
 };
 
-const onServerUpgrade = (request: { headers: Record<string, unknown> }, socket: Net.Socket) => {
+const onServerUpgrade = (request: { headers: Record<string, unknown> }, socket: Interface.Isocket) => {
     if (request.headers["upgrade"] !== "websocket") {
-        socket.destroy();
+        socket.end("HTTP/1.1 400 Bad Request");
 
         return;
     }
@@ -199,16 +181,13 @@ const onServerUpgrade = (request: { headers: Record<string, unknown> }, socket: 
 
     socketList.push(socket);
 
-    socket.on("readable", () => onSocketReadable(socket));
+    socket.on("data", (buffer) => {
+        onSocketData(socket, buffer);
+    });
 
-    socket.on("end", () => onSocketEnd(socket));
+    socket.on("end", () => {
+        onSocketEnd(socket);
+    });
 
     sendInputBroadcast(socket, "broadcast", `Client ${socket.remoteAddress || ""} connected.`);
 };
-
-for (const event of ["uncaughtException", "unhandledRejection"]) {
-    process.on(event, (error: Error) => {
-        // eslint-disable-next-line no-console
-        console.log("@cimo/websocket - Helper.ts - keepProcess()", `Event: ${event} - Error: ${error.stack?.toString() || error.toString()}`);
-    });
-}
