@@ -1,7 +1,7 @@
 {
     "name": "@cimo/websocket",
-    "version": "1.0.13",
-    "description": "Websocket API (server and client) fast and secure.",
+    "version": "1.0.14",
+    "description": "Websocket API (server/client). Light, fast and secure.",
     "author": "cimo",
     "license": "MIT",
     "repository": {
@@ -11,7 +11,7 @@
     "scripts": {
         "preinstall": "([ ! -f package-lock.json ] && npm install --package-lock-only --ignore-scripts --no-audit); npx npm-force-resolutions",
         "check": "eslint . --fix",
-        "remove_dist": "node -e \"const fs = require('fs');try {fs.rmdirSync('./dist/',{recursive: true})} catch{};process.exit(0);\"",
+        "remove_dist": "node -e \"const fs = require('fs'); try{ fs.rmdirSync('./dist/', { recursive: true }) } catch{}; process.exit(0);\"",
         "build": "npm run check && npm run remove_dist && tsc --build tsconfig.build_server.json && tsc --build tsconfig.build_client.json",
         "pack": "npm run build && npm pack"
     },

@@ -1,6 +1,6 @@
 # Websocket
 
-Websocket API (server and client) fast and secure.
+Websocket API (server/client). Light, fast and secure.
 
 ## Publish
 
