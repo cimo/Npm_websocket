@@ -58,7 +58,7 @@ export const websocket = (socket: CwsServerInterface.Isocket, data: CwsServerInt
 
 ## Client
 
--   index.ts
+-   Index.ts
 
 ```
 ...

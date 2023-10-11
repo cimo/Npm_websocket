@@ -1,6 +1,6 @@
 {
     "name": "@cimo/websocket",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "description": "Websocket API (server/client). Light, fast and secure.",
     "author": "cimo",
     "license": "MIT",
@@ -33,8 +33,8 @@
     "files": [
         "./dist/"
     ],
-    "main": "./dist/main.js",
-    "types": "./dist/main.d.ts",
+    "main": "./dist/Main.js",
+    "types": "./dist/Main.d.ts",
     "keywords": [
         "websocket",
         "api",

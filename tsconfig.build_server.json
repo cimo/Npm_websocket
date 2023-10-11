@@ -1,6 +1,6 @@
 {
     "extends": "./tsconfig.json",
-    "include": ["src/main.ts", "src/server/**/*.ts"],
+    "include": ["src/Main.ts", "src/server/**/*.ts"],
     "exclude": [
         "dist",
         "node_modules",
