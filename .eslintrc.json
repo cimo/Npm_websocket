@@ -10,12 +10,10 @@
         "sourceType": "module"
     },
     "ignorePatterns": [
-        "/*",
-        "src/view/cache/**/*",
-        "!file",
-        "!src",
-        "!webpack.build.js",
-        "!webpack.execute.js"
+        "./**/*",
+        "!./file/**/*",
+        "!./src/**/*",
+        "!./webpack.build.js"
     ],
     "plugins": ["prettier"],
     "extends": ["eslint:recommended", "prettier"],
@@ -41,7 +39,7 @@
     },
     "overrides": [
         {
-            "files": ["src/**/*.ts", "file/**/*.ts"],
+            "files": ["./src/**/*.ts", "./file/**/*.ts"],
             "parser": "@typescript-eslint/parser",
             "plugins": ["@typescript-eslint", "prettier"],
             "extends": [
