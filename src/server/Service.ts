@@ -116,7 +116,7 @@ export default class CwsServer {
         }
 
         if (isMasked) {
-            const maskingKey = buffer.slice(payloadOffset, payloadOffset + this.MASK_KEY_BYTES_LENGTH);
+            const maskingKey = buffer.subarray(payloadOffset, payloadOffset + this.MASK_KEY_BYTES_LENGTH);
             payloadOffset += this.MASK_KEY_BYTES_LENGTH;
 
             for (let i = 0; i < payloadLength; i++) {
@@ -124,7 +124,7 @@ export default class CwsServer {
             }
         }
 
-        const payloadData = buffer.slice(payloadOffset, payloadOffset + payloadLength);
+        const payloadData = buffer.subarray(payloadOffset, payloadOffset + payloadLength);
 
         if (opcode === 0x01) {
             const payloadOutput = payloadData.toString("utf-8");
