@@ -41,6 +41,8 @@ export default class CwsClient {
     receiveMessage = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
         this.receiveMessageHandleList.set(`cws_${tag}_i`, (data) => {
             callback(data);
+
+            return;
         });
     };
 

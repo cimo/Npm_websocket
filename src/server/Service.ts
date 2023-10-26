@@ -31,6 +31,8 @@ export default class CwsServer {
     receiveOutput = (tag: string, callback: Interface.IcallbackReceiveOutput) => {
         this.receiveOutputHandleList.set(`cws_${tag}_o`, (socket, data) => {
             callback(socket, data);
+
+            return;
         });
     };
 
