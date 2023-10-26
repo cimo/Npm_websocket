@@ -82,7 +82,7 @@ export default class CwsServer {
 
         socket.write(header, (error) => {
             if (error) {
-                throw new Error(`@cimo/websocket - Message.ts - onServerUpgrade - Error: ${error.toString()}`);
+                throw new Error(`@cimo/websocket - Service.ts - onServerUpgrade - Error: ${error.toString()}`);
             }
         });
 
@@ -188,7 +188,7 @@ export default class CwsServer {
 
             dataBuffer = target;
         } else {
-            throw new Error("@cimo/websocket - Message.ts - prepareMessage - Error: Message too long.");
+            throw new Error("@cimo/websocket - Service.ts - prepareMessage - Error: Message too long.");
         }
 
         const totalLength = dataBuffer.byteLength + messageSize;
