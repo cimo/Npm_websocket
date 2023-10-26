@@ -6,6 +6,6 @@
         "node_modules",
         "public",
         "src/**/*.config.ts",
-        "src/view/cache/**/*"
+        "src/view/**/*"
     ]
 }

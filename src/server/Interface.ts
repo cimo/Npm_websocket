@@ -2,7 +2,7 @@ import { Socket } from "net";
 import { Server } from "https";
 
 export { Socket as Isocket };
-export { Server as HttpsServer };
+export { Server as IhttpsServer };
 
 export interface Imessage {
     date: string;

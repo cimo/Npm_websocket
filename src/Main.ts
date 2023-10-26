@@ -1,2 +1,4 @@
+import CwsServer from "./server/Service";
+
 export * as CwsServerInterface from "./server/Interface";
-export * as CwsServerMessage from "./server/Message";
+export { CwsServer };
