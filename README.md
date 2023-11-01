@@ -75,7 +75,7 @@ import CwsClient from "@cimo/websocket/dist/client/Service";
 ...
 
 const cwsClient = CwsClient();
-cwsClient.connection(`wss://${window.location.host}`);
+cwsClient.connection("wss://localhost");
 
 cwsClient.receiveMessage("broadcast", (data) => {
     // Global event
