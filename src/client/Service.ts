@@ -17,7 +17,7 @@ export default class CwsClient {
     connection = (address?: string) => {
         this.serverAddress = address ? address : this.serverAddress;
 
-        this.websocket = new WebSocket(`wss://${this.serverAddress}`);
+        this.websocket = new WebSocket(this.serverAddress);
 
         this.websocket.addEventListener("open", this.eventOpen);
         this.websocket.addEventListener("message", this.receiveMessageHandle);
