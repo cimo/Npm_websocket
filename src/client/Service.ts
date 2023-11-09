@@ -2,12 +2,18 @@
 import * as Interface from "./Interface";
 
 export default class CwsClient {
+    //private SEVEN_BITS_INTEGER_MARKER: number;
+    //private SIXTEEN_BITS_INTEGER_MARKER: number;
+
     private serverAddress: string;
     private websocket: WebSocket | null;
     private timeoutReconnect: NodeJS.Timer | undefined;
     private receiveMessageHandleList: Map<string, (data: Interface.Imessage) => void>;
 
     constructor() {
+        //this.SEVEN_BITS_INTEGER_MARKER = 125;
+        //this.SIXTEEN_BITS_INTEGER_MARKER = 126;
+
         this.serverAddress = "";
         this.websocket = null;
         this.timeoutReconnect = undefined;
@@ -16,12 +22,15 @@ export default class CwsClient {
 
     connection = (address?: string) => {
         this.serverAddress = address ? address : this.serverAddress;
-
         this.websocket = new WebSocket(this.serverAddress);
 
         this.websocket.addEventListener("open", this.eventOpen);
-        this.websocket.addEventListener("message", this.receiveMessageHandle);
+        this.websocket.addEventListener("message", this.eventReceiveMessageHandle);
         this.websocket.addEventListener("close", this.eventClose);
+
+        this.receiveMessage("ping", () => {
+            this.sendMessage("pong", "ok");
+        });
     };
 
     sendMessage = (tagValue: string, messageValue: string | Record<string, unknown>) => {
@@ -34,7 +43,9 @@ export default class CwsClient {
                 message: messageValue
             };
 
-            this.websocket.send(JSON.stringify(dataStructure));
+            const result = JSON.stringify(dataStructure);
+
+            this.websocket.send(result);
         }
     };
 
@@ -70,7 +81,7 @@ export default class CwsClient {
         clearTimeout(this.timeoutReconnect);
     };
 
-    private receiveMessageHandle = (event: MessageEvent) => {
+    private eventReceiveMessageHandle = (event: MessageEvent) => {
         const data = JSON.parse(event.data as string) as Interface.Imessage;
 
         for (const [tag, callback] of this.receiveMessageHandleList) {
@@ -88,7 +99,7 @@ export default class CwsClient {
             console.log("@cimo/websocket - Service.ts - eventClose():", "Disconnected. Try to reconnect...");
 
             this.websocket.removeEventListener("open", this.eventOpen);
-            this.websocket.removeEventListener("message", this.receiveMessageHandle);
+            this.websocket.removeEventListener("message", this.eventReceiveMessageHandle);
             this.websocket.removeEventListener("close", this.eventClose);
 
             this.websocket = null;
@@ -97,3 +108,42 @@ export default class CwsClient {
         }
     };
 }
+
+/*private prepareMessage = (data: string) => {
+    const encoder = new TextEncoder();
+    const message = encoder.encode(data);
+    const messageSize = message.length;
+
+    let dataBuffer: Uint8Array;
+
+    const firstByte = 0x80 | 0x01;
+
+    if (messageSize <= this.SEVEN_BITS_INTEGER_MARKER) {
+        const bytes = new Uint8Array([firstByte]);
+
+        dataBuffer = new Uint8Array([...bytes, messageSize]);
+    } else if (messageSize <= 2 ** 16) {
+        const target = new Uint8Array(4);
+
+        target[0] = firstByte;
+        target[1] = this.SIXTEEN_BITS_INTEGER_MARKER | 0x0;
+
+        new DataView(target.buffer).setUint16(2, messageSize);
+
+        dataBuffer = target;
+    } else {
+        throw new Error("@cimo/websocket - Service.ts - prepareMessage - Error: Message too long.");
+    }
+
+    const totalLength = dataBuffer.byteLength + messageSize;
+
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+
+    for (const buffer of [dataBuffer, message]) {
+        result.set(buffer, offset);
+        offset += buffer.length;
+    }
+
+    return result;
+};*/

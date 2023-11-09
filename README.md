@@ -27,7 +27,7 @@ import * as ControllerTest from "../controller/Test";
 ...
 
 const cwsServer = new CwsServer();
-cwsServer.create(server);
+cwsServer.create(server, 15000);
 
 cwsServer.receiveOutput("test", (socket, data) => {
     ControllerTest.websocket(cwsServer, socket, data);

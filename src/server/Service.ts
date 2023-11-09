@@ -13,6 +13,9 @@ export default class CwsServer {
     private socketList: Interface.Isocket[];
     private receiveOutputHandleList: Map<string, (socket: Interface.Isocket, data: Interface.Imessage) => void>;
 
+    private pingTime: number;
+    private pingInterval: NodeJS.Timer | undefined;
+
     constructor() {
         this.WEBSOCKET_MAGIC_STRING_KEY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
         this.SEVEN_BITS_INTEGER_MARKER = 125;
@@ -22,9 +25,14 @@ export default class CwsServer {
 
         this.socketList = [];
         this.receiveOutputHandleList = new Map();
+
+        this.pingTime = 3000;
+        this.pingInterval = undefined;
     }
 
-    create = (server: Interface.IhttpsServer) => {
+    create = (server: Interface.IhttpsServer, pingTime?: number) => {
+        this.pingTime = pingTime ? pingTime : this.pingTime;
+
         server.on("upgrade", this.onServerUpgrade);
     };
 
@@ -97,6 +105,10 @@ export default class CwsServer {
         });
 
         this.sendInputBroadcast(socket, "broadcast", `Client ${socket.remoteAddress || ""} connected.`);
+
+        this.pingInterval = setInterval(() => {
+            this.sendInput(socket, "ping", "ok");
+        }, this.pingTime);
     };
 
     private onSocketData = (socket: Interface.Isocket, buffer: Buffer) => {
@@ -146,6 +158,8 @@ export default class CwsServer {
 
     private onSocketEnd = (socket: Interface.Isocket) => {
         this.sendInputBroadcast(socket, "broadcast", `Client ${socket.remoteAddress || ""} disconnected.`);
+
+        clearInterval(this.pingInterval);
 
         const index = this.socketList.indexOf(socket);
 

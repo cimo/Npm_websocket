@@ -7,3 +7,8 @@ export interface Imessage {
 export interface IcallbackReceiveMessage {
     (data: Imessage): void;
 }
+
+export interface IworkerMessage {
+    action: string;
+    time: number;
+}
