@@ -1,15 +1,25 @@
-import { Socket } from "net";
 import { Server } from "https";
+import * as Net from "net";
 
-export { Socket as Isocket };
 export { Server as IhttpsServer };
 
+export interface Iclient {
+    socket: Net.Socket;
+    buffer: Buffer;
+    opCode: number;
+    fragmentList: Buffer[];
+    pingInterval: NodeJS.Timeout | undefined;
+}
+
 export interface Imessage {
-    date: string;
     tag: string;
     message: string;
 }
 
-export interface IcallbackReceiveOutput {
-    (socket: Socket, data: Imessage): void;
+export interface IcallbackHandleFrame {
+    (clientOpCode: number, clientFragmentList: Buffer[]);
+}
+
+export interface IcallbackReceiveMessage {
+    (clientId: string, data: string | Buffer[]);
 }

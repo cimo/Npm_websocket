@@ -2,90 +2,97 @@
 import * as Interface from "./Interface";
 
 export default class CwsClient {
-    //private SEVEN_BITS_INTEGER_MARKER: number;
-    //private SIXTEEN_BITS_INTEGER_MARKER: number;
+    clientId: string;
 
-    private serverAddress: string;
-    private websocket: WebSocket | null;
-    private timeoutReconnect: NodeJS.Timer | undefined;
-    private receiveMessageHandleList: Map<string, (data: Interface.Imessage) => void>;
+    private address: string;
+    private ws: WebSocket | undefined;
+    private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
 
-    constructor() {
-        //this.SEVEN_BITS_INTEGER_MARKER = 125;
-        //this.SIXTEEN_BITS_INTEGER_MARKER = 126;
+    constructor(address: string) {
+        this.clientId = "";
 
-        this.serverAddress = "";
-        this.websocket = null;
-        this.timeoutReconnect = undefined;
-        this.receiveMessageHandleList = new Map();
+        this.address = address;
+        this.ws = undefined;
+        this.handleReceiveDataList = new Map();
+
+        this.create();
     }
 
-    connection = (address?: string) => {
-        this.serverAddress = address ? address : this.serverAddress;
-        this.websocket = new WebSocket(this.serverAddress);
+    sendData = (mode: number, data: string | ArrayBuffer, tag = "") => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            if (mode === 1) {
+                const json = {
+                    tag: `cws_${tag}`,
+                    message: data
+                } as Interface.Imessage;
 
-        this.websocket.addEventListener("open", this.eventOpen);
-        this.websocket.addEventListener("message", this.eventReceiveMessageHandle);
-        this.websocket.addEventListener("close", this.eventClose);
-
-        this.receiveMessage("ping", () => {
-            this.sendMessage("pong", "ok");
-        });
-    };
-
-    sendMessage = (tagValue: string, messageValue: string | Record<string, unknown>) => {
-        const check = this.checkConnection();
-
-        if (this.websocket && check) {
-            const dataStructure = {
-                date: new Date().toISOString(),
-                tag: `cws_${tagValue}_o`,
-                message: messageValue
-            };
-
-            const result = JSON.stringify(dataStructure);
-
-            this.websocket.send(result);
+                this.ws.send(JSON.stringify(json));
+            } else if (mode === 2) {
+                this.ws.send(data);
+            }
         }
     };
 
-    receiveMessage = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
-        this.receiveMessageHandleList.set(`cws_${tag}_i`, (data) => {
+    sendDataBroadcast = (data: string) => {
+        this.sendData(1, data, "broadcast");
+    };
+
+    receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
+        this.handleReceiveDataList.set(`cws_${tag}`, (data) => {
             callback(data);
-
-            return;
         });
     };
 
-    receiveMessageOff = (tag: string) => {
-        if (this.receiveMessageHandleList.has(`cws_${tag}_i`)) {
-            this.receiveMessageHandleList.delete(`cws_${tag}_i`);
+    receiveDataOff = (tag: string) => {
+        if (this.handleReceiveDataList.has(`cws_${tag}`)) {
+            this.handleReceiveDataList.delete(`cws_${tag}`);
         }
     };
 
-    checkConnection = () => {
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            return true;
-        }
+    private create = () => {
+        this.ws = new WebSocket(this.address);
+        this.ws.binaryType = "arraybuffer";
 
-        // eslint-disable-next-line no-console
-        console.log("@cimo/websocket - Service.ts - checkConnection():", "Server not ready.");
+        this.ws.onopen = () => {
+            // eslint-disable-next-line no-console
+            console.log("@cimo/webSocket - Client - Service.ts - onopen()", "Connection open.");
+        };
 
-        return false;
+        let messageTagDownload = "";
+
+        this.ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+            if (this.ws) {
+                if (typeof event.data === "string") {
+                    const json = JSON.parse(event.data) as Interface.Imessage;
+
+                    if (json.tag === "cws_client_connection") {
+                        this.clientId = json.message;
+                    } else if (json.tag === "cws_download") {
+                        messageTagDownload = json.tag;
+                    }
+
+                    this.handleReceiveData(json.tag, json.message);
+                } else if (typeof event.data !== "string" && messageTagDownload) {
+                    const view = new DataView(event.data);
+
+                    this.handleReceiveData(messageTagDownload, view);
+
+                    messageTagDownload = "";
+                }
+            }
+        };
+
+        this.ws.onclose = () => {
+            // eslint-disable-next-line no-console
+            console.log("@cimo/webSocket - Client - Service.ts - onclose()", "Connection close.");
+
+            this.cleanup();
+        };
     };
 
-    private eventOpen = () => {
-        // eslint-disable-next-line no-console
-        console.log("@cimo/websocket - Service.ts - eventOpen():", "Connected.");
-
-        clearTimeout(this.timeoutReconnect);
-    };
-
-    private eventReceiveMessageHandle = (event: MessageEvent) => {
-        const data = JSON.parse(event.data as string) as Interface.Imessage;
-
-        for (const [tag, callback] of this.receiveMessageHandleList) {
-            if (tag === data.tag) {
+    private handleReceiveData = (tag: string, data: string | DataView) => {
+        for (const [index, callback] of this.handleReceiveDataList) {
+            if (tag === index) {
                 callback(data);
 
                 return;
@@ -93,57 +100,9 @@ export default class CwsClient {
         }
     };
 
-    private eventClose = () => {
-        if (this.websocket) {
-            // eslint-disable-next-line no-console
-            console.log("@cimo/websocket - Service.ts - eventClose():", "Disconnected. Try to reconnect...");
-
-            this.websocket.removeEventListener("open", this.eventOpen);
-            this.websocket.removeEventListener("message", this.eventReceiveMessageHandle);
-            this.websocket.removeEventListener("close", this.eventClose);
-
-            this.websocket = null;
-
-            this.timeoutReconnect = setTimeout(this.connection, 1000);
-        }
+    private cleanup = () => {
+        this.address = "";
+        this.ws = undefined;
+        this.clientId = "";
     };
 }
-
-/*private prepareMessage = (data: string) => {
-    const encoder = new TextEncoder();
-    const message = encoder.encode(data);
-    const messageSize = message.length;
-
-    let dataBuffer: Uint8Array;
-
-    const firstByte = 0x80 | 0x01;
-
-    if (messageSize <= this.SEVEN_BITS_INTEGER_MARKER) {
-        const bytes = new Uint8Array([firstByte]);
-
-        dataBuffer = new Uint8Array([...bytes, messageSize]);
-    } else if (messageSize <= 2 ** 16) {
-        const target = new Uint8Array(4);
-
-        target[0] = firstByte;
-        target[1] = this.SIXTEEN_BITS_INTEGER_MARKER | 0x0;
-
-        new DataView(target.buffer).setUint16(2, messageSize);
-
-        dataBuffer = target;
-    } else {
-        throw new Error("@cimo/websocket - Service.ts - prepareMessage - Error: Message too long.");
-    }
-
-    const totalLength = dataBuffer.byteLength + messageSize;
-
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-
-    for (const buffer of [dataBuffer, message]) {
-        result.set(buffer, offset);
-        offset += buffer.length;
-    }
-
-    return result;
-};*/

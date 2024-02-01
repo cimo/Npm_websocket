@@ -1,220 +1,291 @@
+import * as Net from "net";
 import * as Crypto from "crypto";
 
 // Source
 import * as Interface from "./Interface";
 
 export default class CwsServer {
-    private WEBSOCKET_MAGIC_STRING_KEY: string;
-    private SEVEN_BITS_INTEGER_MARKER: number;
-    private SIXTEEN_BITS_INTEGER_MARKER: number;
-    private THIRTYTWO_BITS_INTEGER_MARKER: number;
-    private MASK_KEY_BYTES_LENGTH: number;
-
-    private socketList: Interface.Isocket[];
-    private receiveOutputHandleList: Map<string, (socket: Interface.Isocket, data: Interface.Imessage) => void>;
-
+    private clientList: Map<string, Interface.Iclient>;
     private pingTime: number;
-    private pingInterval: NodeJS.Timer | undefined;
+    private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
 
-    constructor() {
-        this.WEBSOCKET_MAGIC_STRING_KEY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-        this.SEVEN_BITS_INTEGER_MARKER = 125;
-        this.SIXTEEN_BITS_INTEGER_MARKER = 126;
-        this.THIRTYTWO_BITS_INTEGER_MARKER = 127;
-        this.MASK_KEY_BYTES_LENGTH = 4;
+    constructor(server: Interface.IhttpsServer, pingTime = 25000) {
+        this.clientList = new Map();
+        this.pingTime = pingTime;
+        this.handleReceiveDataList = new Map();
 
-        this.socketList = [];
-        this.receiveOutputHandleList = new Map();
-
-        this.pingTime = 3000;
-        this.pingInterval = undefined;
+        this.create(server);
     }
 
-    create = (server: Interface.IhttpsServer, pingTime?: number) => {
-        this.pingTime = pingTime ? pingTime : this.pingTime;
+    sendData = (clientId: string, mode: number, data: string | Buffer, tag = "") => {
+        const client = this.checkClient(clientId);
 
-        server.on("upgrade", this.onServerUpgrade);
-    };
-
-    receiveOutput = (tag: string, callback: Interface.IcallbackReceiveOutput) => {
-        this.receiveOutputHandleList.set(`cws_${tag}_o`, (socket, data) => {
-            callback(socket, data);
-
+        if (!client) {
             return;
-        });
-    };
+        }
 
-    receiveOutputOff = (tag: string) => {
-        if (this.receiveOutputHandleList.has(`cws_${tag}_o`)) {
-            this.receiveOutputHandleList.delete(`cws_${tag}_o`);
+        if (client && client.socket && client.socket.writable) {
+            let buffer: Buffer = Buffer.alloc(0);
+            let frame0 = 0;
+
+            if (mode === 1) {
+                const json = {
+                    tag: `cws_${tag}`,
+                    message: data
+                } as Interface.Imessage;
+
+                buffer = Buffer.from(JSON.stringify(json));
+                frame0 = 0x81;
+            } else if (mode === 2) {
+                buffer = Buffer.from(data);
+                frame0 = 0x82;
+            }
+
+            const length = buffer.length;
+
+            let frame: Buffer;
+
+            if (length <= 125) {
+                frame = Buffer.alloc(length + 2);
+                frame[0] = frame0;
+                frame[1] = length;
+            } else if (length <= 65535) {
+                frame = Buffer.alloc(length + 4);
+                frame[0] = frame0;
+                frame[1] = 126;
+                frame.writeUInt16BE(length, 2);
+            } else {
+                frame = Buffer.alloc(length + 10);
+                frame[0] = frame0;
+                frame[1] = 127;
+                frame.writeBigUInt64BE(BigInt(length), 2);
+            }
+
+            buffer.copy(frame, frame.length - length);
+
+            client.socket.write(frame);
         }
     };
 
-    sendInput = (socket: Interface.Isocket | null, tagValue: string, messageValue: string | Record<string, unknown>) => {
-        if (socket && tagValue) {
-            const dataStructure = {
-                date: new Date().toISOString(),
-                tag: `cws_${tagValue}_i`,
-                message: messageValue
-            };
-
-            const result = this.prepareMessage(JSON.stringify(dataStructure));
-
-            socket.write(result);
-        }
-    };
-
-    sendInputBroadcast = (socket: Interface.Isocket | null, tag: string, message: string | Record<string, unknown>) => {
-        for (const client of this.socketList) {
-            if (client && !client.destroyed && client !== socket) {
-                this.sendInput(client, tag, message);
+    sendDataBroadcast = (data: string, clientId?: string) => {
+        for (const [index] of this.clientList) {
+            if (!clientId || (clientId && clientId !== index)) {
+                this.sendData(index, 1, data, "broadcast");
             }
         }
     };
 
-    private onServerUpgrade = (request: { headers: Record<string, unknown> }, socket: Interface.Isocket) => {
-        if (request.headers["upgrade"] !== "websocket") {
-            socket.end("HTTP/1.1 400 Bad Request");
+    receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
+        this.handleReceiveDataList.set(`cws_${tag}`, (clientId, data) => {
+            callback(clientId, data);
+        });
+    };
 
+    receiveDataOff = (tag: string) => {
+        if (this.handleReceiveDataList.has(`cws_${tag}`)) {
+            this.handleReceiveDataList.delete(`cws_${tag}`);
+        }
+    };
+
+    private create = (server: Interface.IhttpsServer) => {
+        server.on("upgrade", (request: Request, socket: Net.Socket) => {
+            if (request.headers["upgrade"] !== "websocket") {
+                socket.end("HTTP/1.1 400 Bad Request");
+
+                return;
+            }
+
+            socket.write(this.responseHeader(request).join("\r\n"));
+
+            const clientId = this.generateClientId();
+
+            this.clientList.set(clientId, {
+                socket,
+                buffer: Buffer.alloc(0),
+                opCode: -1,
+                fragmentList: [],
+                pingInterval: undefined
+            });
+
+            this.ping(clientId);
+
+            // eslint-disable-next-line no-console
+            console.log(
+                "@cimo/webSocket - Server - Service.ts - create() - upgrade:",
+                `Client ${clientId} - Ip: ${socket.remoteAddress || ""} connected`
+            );
+
+            this.sendData(clientId, 1, clientId, "client_connection");
+
+            this.sendDataBroadcast(`Client ${clientId} - Ip: ${socket.remoteAddress || ""} connected`, clientId);
+
+            let messageTagUpload = "";
+
+            socket.on("data", (data: Buffer) => {
+                this.handleFrame(clientId, data, (clientOpCode, clientFragmentList) => {
+                    if (clientOpCode === 1) {
+                        const json = JSON.parse(clientFragmentList as unknown as string) as Interface.Imessage;
+
+                        if (json.tag === "cws_broadcast") {
+                            this.sendDataBroadcast(json.message, clientId);
+                        } else if (json.tag === "cws_upload") {
+                            messageTagUpload = json.tag;
+                        }
+
+                        this.handleReceiveData(clientId, json.tag, json.message);
+                    } else if ((clientOpCode === 0 || clientOpCode === 2) && messageTagUpload) {
+                        this.handleReceiveData(clientId, messageTagUpload, clientFragmentList);
+
+                        messageTagUpload = "";
+                    }
+                });
+            });
+
+            socket.on("end", () => {
+                // eslint-disable-next-line no-console
+                console.log(
+                    "@cimo/webSocket - Server - Service.ts - create() - end:",
+                    `Client ${clientId} - Ip: ${socket.remoteAddress || ""} disconnected`
+                );
+
+                this.sendDataBroadcast(`Client ${clientId} - Ip: ${socket.remoteAddress || ""} disconnected`, clientId);
+
+                this.cleanup(clientId);
+            });
+        });
+    };
+
+    private responseHeader = (request: Request) => {
+        const key = (request.headers["sec-websocket-key"] as string) || "";
+        const hash = Crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
+
+        return ["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${hash}`, "\r\n"];
+    };
+
+    private generateClientId(): string {
+        const randomBytes = Crypto.randomBytes(16);
+
+        return randomBytes.toString("hex");
+    }
+
+    private checkClient = (clientId: string) => {
+        const client = this.clientList.get(clientId);
+
+        if (!client) {
+            // eslint-disable-next-line no-console
+            console.log("@cimo/webSocket - Server - Service.ts - checkClient():", `Client ${clientId} not exists!`);
+
+            return undefined;
+        }
+
+        return client;
+    };
+
+    private handleFrame = (clientId: string, data: Buffer, callback: Interface.IcallbackHandleFrame) => {
+        const client = this.checkClient(clientId);
+
+        if (!client) {
             return;
         }
 
-        const { "sec-websocket-key": webClientSocketKey } = request.headers;
+        client.buffer = Buffer.concat([client.buffer, data]);
 
-        const socketKey = webClientSocketKey as string;
-        const acceptKey = Crypto.createHash("sha1").update(socketKey.concat(this.WEBSOCKET_MAGIC_STRING_KEY)).digest("base64");
+        while (client.buffer.length > 2) {
+            let payloadLength = client.buffer[1] & 0x7f;
+            let frameLength = payloadLength + 6;
+            let maskingKeyStart = 2;
 
-        const header = ["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${acceptKey}`, ""]
-            .map((line) => line.concat("\r\n"))
-            .join("");
-
-        socket.write(header, (error) => {
-            if (error) {
-                throw new Error(`@cimo/websocket - Service.ts - onServerUpgrade - Error: ${error.toString()}`);
+            if (payloadLength === 126) {
+                payloadLength = client.buffer.readUInt16BE(2);
+                frameLength = payloadLength + 8;
+                maskingKeyStart = 4;
+            } else if (payloadLength === 127) {
+                payloadLength = Number(client.buffer.readBigUInt64BE(2));
+                frameLength = payloadLength + 14;
+                maskingKeyStart = 10;
             }
-        });
 
-        this.socketList.push(socket);
+            if (client.buffer.length < frameLength) {
+                break;
+            }
 
-        socket.on("data", (buffer) => {
-            this.onSocketData(socket, buffer);
-        });
+            const frame = client.buffer.slice(0, frameLength);
+            client.buffer = client.buffer.slice(frameLength);
 
-        socket.on("end", () => {
-            this.onSocketEnd(socket);
-        });
+            const fin = (frame[0] & 0x80) === 0x80;
+            client.opCode = frame[0] & 0x0f;
+            const isMasked = frame[1] & 0x80;
 
-        this.sendInputBroadcast(socket, "broadcast", `Client ${socket.remoteAddress || ""} connected.`);
+            const payloadStart = maskingKeyStart + 4;
+            const payload = frame.slice(payloadStart);
 
-        this.pingInterval = setInterval(() => {
-            this.sendInput(socket, "ping", "ok");
+            if (isMasked) {
+                const maskingKey = frame.slice(maskingKeyStart, payloadStart);
+
+                for (let a = 0; a < payload.length; a++) {
+                    payload[a] ^= maskingKey[a % 4];
+                }
+            }
+
+            if (client.opCode === 0x01 || client.opCode === 0x02 || client.opCode === 0x00) {
+                client.fragmentList.push(payload);
+            } else if (client.opCode === 0x0a) {
+                // eslint-disable-next-line no-console
+                console.log("@cimo/webSocket - Server - Service.ts - handleFrame():", `Client ${clientId} pong.`);
+            }
+
+            if (fin) {
+                const clientOpCode = client.opCode;
+                const clientFragmentList = client.fragmentList;
+
+                callback(clientOpCode, clientFragmentList);
+
+                client.buffer = Buffer.alloc(0);
+                client.opCode = -1;
+                client.fragmentList = [];
+            }
+        }
+    };
+
+    private ping = (clientId: string) => {
+        const client = this.checkClient(clientId);
+
+        if (!client) {
+            return;
+        }
+
+        client.pingInterval = setInterval(() => {
+            if (client.socket && client.socket.writable) {
+                const frame = Buffer.alloc(2);
+                frame[0] = 0x89;
+                frame[1] = 0x00;
+
+                client.socket.write(frame);
+            }
         }, this.pingTime);
     };
 
-    private onSocketData = (socket: Interface.Isocket, buffer: Buffer) => {
-        let data = {} as Interface.Imessage;
-
-        let payloadLength = buffer[1] & 0x7f;
-        let payloadOffset = 2;
-        const opcode = buffer[0] & 0x0f;
-        const isMasked = (buffer[1] & 0x80) !== 0;
-
-        if (payloadLength === this.SIXTEEN_BITS_INTEGER_MARKER) {
-            payloadLength = buffer.readUInt16BE(2);
-            payloadOffset = 4;
-        } else if (payloadLength === this.THIRTYTWO_BITS_INTEGER_MARKER) {
-            payloadLength = buffer.readUInt32BE(2);
-            payloadOffset = 10;
-        }
-
-        if (isMasked) {
-            const maskingKey = buffer.subarray(payloadOffset, payloadOffset + this.MASK_KEY_BYTES_LENGTH);
-            payloadOffset += this.MASK_KEY_BYTES_LENGTH;
-
-            for (let i = 0; i < payloadLength; i++) {
-                buffer[payloadOffset + i] ^= maskingKey[i % this.MASK_KEY_BYTES_LENGTH];
-            }
-        }
-
-        const payloadData = buffer.subarray(payloadOffset, payloadOffset + payloadLength);
-
-        if (opcode === 0x01) {
-            const payloadOutput = payloadData.toString("utf-8");
-
-            if (
-                /^[\],:{}\s]*$/.test(
-                    payloadOutput
-                        .replace(/\\["\\/bfnrtu]/g, "@")
-                        .replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\\-]?\d+)?/g, "]")
-                        .replace(/(?:^|:|,)(?:\s*\[)+/g, "")
-                )
-            ) {
-                data = JSON.parse(payloadOutput) as Interface.Imessage;
-            }
-        }
-
-        this.receiveOutputHandle(socket, data);
-    };
-
-    private onSocketEnd = (socket: Interface.Isocket) => {
-        this.sendInputBroadcast(socket, "broadcast", `Client ${socket.remoteAddress || ""} disconnected.`);
-
-        clearInterval(this.pingInterval);
-
-        const index = this.socketList.indexOf(socket);
-
-        if (index > -1) {
-            this.socketList.splice(index, 1);
-        }
-
-        socket.destroy();
-    };
-
-    private receiveOutputHandle = (socket: Interface.Isocket, data: Interface.Imessage) => {
-        for (const [tag, callback] of this.receiveOutputHandleList) {
-            if (tag === data.tag) {
-                callback(socket, data);
+    private handleReceiveData = (clientId: string, tag: string, data: string | Buffer[]) => {
+        for (const [index, callback] of this.handleReceiveDataList) {
+            if (tag === index) {
+                callback(clientId, data);
 
                 return;
             }
         }
     };
 
-    private prepareMessage = (data: string) => {
-        const message = Buffer.from(data);
-        const messageSize = message.length;
+    private cleanup = (clientId: string) => {
+        const client = this.checkClient(clientId);
 
-        let dataBuffer: Buffer;
-
-        const firstByte = 0x80 | 0x01;
-
-        if (messageSize <= this.SEVEN_BITS_INTEGER_MARKER) {
-            const bytes = [firstByte];
-
-            dataBuffer = Buffer.from(bytes.concat(messageSize));
-        } else if (messageSize <= 2 ** 16) {
-            const target = Buffer.allocUnsafe(4);
-
-            target[0] = firstByte;
-            target[1] = this.SIXTEEN_BITS_INTEGER_MARKER | 0x0;
-
-            target.writeUint16BE(messageSize, 2);
-
-            dataBuffer = target;
-        } else {
-            throw new Error("@cimo/websocket - Service.ts - prepareMessage - Error: Message too long.");
+        if (!client) {
+            return;
         }
 
-        const totalLength = dataBuffer.byteLength + messageSize;
+        if (client.socket) {
+            client.socket.end();
 
-        const result = Buffer.allocUnsafe(totalLength);
-        let offset = 0;
-
-        for (const buffer of [dataBuffer, message]) {
-            result.set(buffer, offset);
-            offset += buffer.length;
+            this.clientList.delete(clientId);
         }
-
-        return result;
     };
 }
