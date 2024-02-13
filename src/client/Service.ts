@@ -2,18 +2,28 @@
 import * as Interface from "./Interface";
 
 export default class CwsClient {
-    clientId: string;
-
+    private clientId: string;
     private address: string;
     private ws: WebSocket | undefined;
     private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
+    private countCheckConnection: number;
+    private countCheckConnectionLimit: number;
+    private intervalCheckConnection: NodeJS.Timeout | undefined;
+    private callbackCheckConnection: (() => void) | undefined;
 
-    constructor(address: string) {
+    getClientId = () => {
+        return this.clientId;
+    };
+
+    constructor(address: string, countCheckConnectionLimit = 25) {
         this.clientId = "";
-
         this.address = address;
         this.ws = undefined;
         this.handleReceiveDataList = new Map();
+        this.countCheckConnection = 0;
+        this.countCheckConnectionLimit = countCheckConnectionLimit;
+        this.intervalCheckConnection = undefined;
+        this.callbackCheckConnection = undefined;
 
         this.create();
     }
@@ -30,6 +40,9 @@ export default class CwsClient {
             } else if (mode === 2) {
                 this.ws.send(data);
             }
+        } else {
+            // eslint-disable-next-line no-console
+            console.log("@cimo/webSocket - Client - Service.ts - sendData()", "Client not connected.");
         }
     };
 
@@ -37,9 +50,30 @@ export default class CwsClient {
         this.sendData(1, data, "broadcast");
     };
 
+    sendDataUpload = (filename: string, data: ArrayBuffer) => {
+        this.sendData(1, JSON.stringify({ filename }), "upload");
+        this.sendData(2, data);
+    };
+
     receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
         this.handleReceiveDataList.set(`cws_${tag}`, (data) => {
             callback(data);
+        });
+    };
+
+    receiveDataDownload = (callback: Interface.IcallbackReceiveDownload) => {
+        let filename = "";
+
+        this.receiveData("download", (data) => {
+            if (typeof data === "string") {
+                const message = JSON.parse(data) as Record<string, string>;
+
+                filename = message.filename;
+            } else {
+                callback(data, filename);
+
+                filename = "";
+            }
         });
     };
 
@@ -49,13 +83,38 @@ export default class CwsClient {
         }
     };
 
+    checkConnection = (callback: () => void) => {
+        if (this.countCheckConnection > this.countCheckConnectionLimit) {
+            clearInterval(this.intervalCheckConnection);
+        }
+
+        if (!this.callbackCheckConnection) {
+            this.callbackCheckConnection = callback;
+        }
+
+        if (this.ws) {
+            if (this.ws.readyState === WebSocket.OPEN) {
+                clearInterval(this.intervalCheckConnection);
+                this.intervalCheckConnection = undefined;
+
+                this.countCheckConnection = 0;
+
+                this.callbackCheckConnection();
+            } else if (!this.intervalCheckConnection && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.CLOSED)) {
+                this.intervalCheckConnection = setInterval(() => {
+                    this.checkConnection(callback);
+                }, 1000);
+            }
+        }
+    };
+
     private create = () => {
         this.ws = new WebSocket(this.address);
         this.ws.binaryType = "arraybuffer";
 
         this.ws.onopen = () => {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Client - Service.ts - onopen()", "Connection open.");
+            console.log("@cimo/webSocket - Client - Service.ts - onOpen()", "Connection open.");
         };
 
         let messageTagDownload = "";
@@ -84,9 +143,19 @@ export default class CwsClient {
 
         this.ws.onclose = () => {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Client - Service.ts - onclose()", "Connection close.");
+            console.log("@cimo/webSocket - Client - Service.ts - onClose()", "Connection close.");
 
             this.cleanup();
+
+            if (this.countCheckConnection < this.countCheckConnectionLimit) {
+                this.countCheckConnection++;
+
+                this.create();
+
+                this.checkConnection(() => {
+                    //...
+                });
+            }
         };
     };
 
@@ -101,8 +170,7 @@ export default class CwsClient {
     };
 
     private cleanup = () => {
-        this.address = "";
-        this.ws = undefined;
         this.clientId = "";
+        this.ws = undefined;
     };
 }

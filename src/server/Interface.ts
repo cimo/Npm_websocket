@@ -8,7 +8,7 @@ export interface Iclient {
     buffer: Buffer;
     opCode: number;
     fragmentList: Buffer[];
-    pingInterval: NodeJS.Timeout | undefined;
+    intervalPing: NodeJS.Timeout | undefined;
 }
 
 export interface Imessage {
@@ -16,10 +16,14 @@ export interface Imessage {
     message: string;
 }
 
-export interface IcallbackHandleFrame {
-    (clientOpCode: number, clientFragmentList: Buffer[]);
-}
-
 export interface IcallbackReceiveMessage {
     (clientId: string, data: string | Buffer[]);
+}
+
+export interface IcallbackReceiveUpload {
+    (clientId: string, data: Buffer[], filename: string);
+}
+
+export interface IcallbackHandleFrame {
+    (clientOpCode: number, clientFragmentList: Buffer[]);
 }

@@ -10,3 +10,7 @@ export interface Imessage {
 export interface IcallbackReceiveMessage {
     (data: string | DataView);
 }
+
+export interface IcallbackReceiveDownload {
+    (data: DataView, filename: string);
+}

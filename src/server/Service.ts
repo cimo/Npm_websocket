@@ -6,12 +6,16 @@ import * as Interface from "./Interface";
 
 export default class CwsServer {
     private clientList: Map<string, Interface.Iclient>;
-    private pingTime: number;
+    private timePing: number;
     private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
 
-    constructor(server: Interface.IhttpsServer, pingTime = 25000) {
+    getClientList = () => {
+        return this.clientList;
+    };
+
+    constructor(server: Interface.IhttpsServer, timePing = 25000) {
         this.clientList = new Map();
-        this.pingTime = pingTime;
+        this.timePing = timePing;
         this.handleReceiveDataList = new Map();
 
         this.create(server);
@@ -75,9 +79,30 @@ export default class CwsServer {
         }
     };
 
+    sendDataDownload = (clientId: string, filename: string, file: Buffer) => {
+        this.sendData(clientId, 1, JSON.stringify({ filename }), "download");
+        this.sendData(clientId, 2, file);
+    };
+
     receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
         this.handleReceiveDataList.set(`cws_${tag}`, (clientId, data) => {
             callback(clientId, data);
+        });
+    };
+
+    receiveDataUpload = (callback: Interface.IcallbackReceiveUpload) => {
+        let filename = "";
+
+        this.receiveData("upload", (clientId, data) => {
+            if (typeof data === "string") {
+                const message = JSON.parse(data) as Record<string, string>;
+
+                filename = message.filename;
+            } else {
+                callback(clientId, data, filename);
+
+                filename = "";
+            }
         });
     };
 
@@ -104,20 +129,20 @@ export default class CwsServer {
                 buffer: Buffer.alloc(0),
                 opCode: -1,
                 fragmentList: [],
-                pingInterval: undefined
+                intervalPing: undefined
             });
 
             this.ping(clientId);
 
             // eslint-disable-next-line no-console
             console.log(
-                "@cimo/webSocket - Server - Service.ts - create() - upgrade:",
+                "@cimo/webSocket - Server - Service.ts - create() - onUpgrade",
                 `Client ${clientId} - Ip: ${socket.remoteAddress || ""} connected`
             );
 
             this.sendData(clientId, 1, clientId, "client_connection");
 
-            this.sendDataBroadcast(`Client ${clientId} - Ip: ${socket.remoteAddress || ""} connected`, clientId);
+            this.sendDataBroadcast(`Client ${clientId} connected`, clientId);
 
             let messageTagUpload = "";
 
@@ -132,9 +157,9 @@ export default class CwsServer {
                             messageTagUpload = json.tag;
                         }
 
-                        this.handleReceiveData(clientId, json.tag, json.message);
+                        this.handleReceiveData(json.tag, clientId, json.message);
                     } else if ((clientOpCode === 0 || clientOpCode === 2) && messageTagUpload) {
-                        this.handleReceiveData(clientId, messageTagUpload, clientFragmentList);
+                        this.handleReceiveData(messageTagUpload, clientId, clientFragmentList);
 
                         messageTagUpload = "";
                     }
@@ -144,11 +169,11 @@ export default class CwsServer {
             socket.on("end", () => {
                 // eslint-disable-next-line no-console
                 console.log(
-                    "@cimo/webSocket - Server - Service.ts - create() - end:",
+                    "@cimo/webSocket - Server - Service.ts - create() - onEnd",
                     `Client ${clientId} - Ip: ${socket.remoteAddress || ""} disconnected`
                 );
 
-                this.sendDataBroadcast(`Client ${clientId} - Ip: ${socket.remoteAddress || ""} disconnected`, clientId);
+                this.sendDataBroadcast(`Client ${clientId} disconnected`, clientId);
 
                 this.cleanup(clientId);
             });
@@ -173,7 +198,7 @@ export default class CwsServer {
 
         if (!client) {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Server - Service.ts - checkClient():", `Client ${clientId} not exists!`);
+            console.log("@cimo/webSocket - Server - Service.ts - checkClient()", `Client ${clientId} not exists!`);
 
             return undefined;
         }
@@ -231,7 +256,7 @@ export default class CwsServer {
                 client.fragmentList.push(payload);
             } else if (client.opCode === 0x0a) {
                 // eslint-disable-next-line no-console
-                console.log("@cimo/webSocket - Server - Service.ts - handleFrame():", `Client ${clientId} pong.`);
+                console.log("@cimo/webSocket - Server - Service.ts - handleFrame()", `Client ${clientId} pong.`);
             }
 
             if (fin) {
@@ -254,7 +279,7 @@ export default class CwsServer {
             return;
         }
 
-        client.pingInterval = setInterval(() => {
+        client.intervalPing = setInterval(() => {
             if (client.socket && client.socket.writable) {
                 const frame = Buffer.alloc(2);
                 frame[0] = 0x89;
@@ -262,10 +287,10 @@ export default class CwsServer {
 
                 client.socket.write(frame);
             }
-        }, this.pingTime);
+        }, this.timePing);
     };
 
-    private handleReceiveData = (clientId: string, tag: string, data: string | Buffer[]) => {
+    private handleReceiveData = (tag: string, clientId: string, data: string | Buffer[]) => {
         for (const [index, callback] of this.handleReceiveDataList) {
             if (tag === index) {
                 callback(clientId, data);

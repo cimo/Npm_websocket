@@ -26,38 +26,28 @@ import * as ControllerTest from "../controller/Test";
 
 ...
 
-const cwsServer = new CwsServer();
-cwsServer.create(server, 15000);
+const cwsServer = new CwsServer(server);
 
-cwsServer.receiveOutput("test", (socket, data) => {
-    ControllerTest.websocket(cwsServer, socket, data);
-});
+ControllerTester.websocket(cwsServer);
 
 ...
 ```
 
--   ControllerTest.ts
+-   ControllerTester.ts
 
 ```
 ...
 
-import { CwsServer, CwsServerInterface } from "@cimo/websocket";
+import { CwsServer } from "@cimo/websocket";
 
 ...
 
-let cwsServer: CwsServer;
-
-...
-
-export const websocket = (cwsServerValue: CwsServer, socket: CwsServerInterface.Isocket, data: CwsServerInterface.Imessage) => {
-    cwsServer = cwsServerValue;
-
-    const tag = data.tag;
-    const message = data.message;
-
-    if (tag === "cws_test_o") {
-        cwsServer.sendInput(socket, "test", message);
-    }
+export const websocket = (cwsServer: CwsServer, cp: Cp) => {
+    cwsServer.receiveData("action_test", (clientId, data) => {
+        if (typeof data === "string") {
+            cwsServer.sendData(clientId, 1, JSON.stringify({ test: "end" }), "action_test");
+        }
+    });
 };
 
 ...
@@ -74,21 +64,20 @@ import CwsClient from "@cimo/websocket/dist/client/Service";
 
 ...
 
-const cwsClient = CwsClient();
-cwsClient.connection("wss://localhost");
+const cwsClient = new CwsClient("wss://localhost");
 
-cwsClient.receiveMessage("broadcast", (data) => {
-    // Global event
+cwsClient.checkConnection(() => {
+    cwsClient.receiveData("action_test", (data) => {
+        if (typeof data === "string") {
+            const message = JSON.parse(data) as Record<string, string>;
+
+            console.log(message);
+        }
+    });
 });
-
-cwsClient.receiveMessage("test", (data) => {
-    // Test event
-});
-
-...
 
 elementButton.addEventListener("click", (event) => {
-    cwsClient.sendMessage("test", { value: 1 });
+    cwsClient.sendData(1, JSON.stringify({ test: "start" }), "action_test");
 });
 
 ...
