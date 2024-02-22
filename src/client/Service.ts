@@ -42,7 +42,7 @@ export default class CwsClient {
             }
         } else {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Client - Service.ts - sendData()", "Client not connected.");
+            console.log("@cimo/webSocket - Client => Service.ts => sendData()", "Client not connected.");
         }
     };
 
@@ -114,7 +114,7 @@ export default class CwsClient {
 
         this.ws.onopen = () => {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Client - Service.ts - onOpen()", "Connection open.");
+            console.log("@cimo/webSocket - Client => Service.ts => onOpen()", "Connection open.");
         };
 
         let messageTagDownload = "";
@@ -126,6 +126,8 @@ export default class CwsClient {
 
                     if (json.tag === "cws_client_connection") {
                         this.clientId = json.message;
+                    } else if (json.tag === "cws_ping") {
+                        this.sendData(1, "", "pong");
                     } else if (json.tag === "cws_download") {
                         messageTagDownload = json.tag;
                     }
@@ -143,7 +145,7 @@ export default class CwsClient {
 
         this.ws.onclose = () => {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Client - Service.ts - onClose()", "Connection close.");
+            console.log("@cimo/webSocket - Client => Service.ts => onClose()", "Connection close.");
 
             this.cleanup();
 

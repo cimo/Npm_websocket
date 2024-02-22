@@ -6,6 +6,7 @@ import * as Interface from "./Interface";
 
 export default class CwsServer {
     private clientList: Map<string, Interface.Iclient>;
+    private modePing: number;
     private timePing: number;
     private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
 
@@ -13,8 +14,9 @@ export default class CwsServer {
         return this.clientList;
     };
 
-    constructor(server: Interface.IhttpsServer, timePing = 25000) {
+    constructor(server: Interface.IhttpsServer, modePing = 1, timePing = 25000) {
         this.clientList = new Map();
+        this.modePing = modePing;
         this.timePing = timePing;
         this.handleReceiveDataList = new Map();
 
@@ -136,7 +138,7 @@ export default class CwsServer {
 
             // eslint-disable-next-line no-console
             console.log(
-                "@cimo/webSocket - Server - Service.ts - create() - onUpgrade",
+                "@cimo/webSocket - Server => Service.ts => create() => onUpgrade()",
                 `Client ${clientId} - Ip: ${socket.remoteAddress || ""} connected`
             );
 
@@ -153,6 +155,9 @@ export default class CwsServer {
 
                         if (json.tag === "cws_broadcast") {
                             this.sendDataBroadcast(json.message, clientId);
+                        } else if (json.tag === "cws_pong") {
+                            // eslint-disable-next-line no-console
+                            //console.log("@cimo/webSocket - Server => Service.ts => create()", `Client ${clientId} pong.`);
                         } else if (json.tag === "cws_upload") {
                             messageTagUpload = json.tag;
                         }
@@ -169,7 +174,7 @@ export default class CwsServer {
             socket.on("end", () => {
                 // eslint-disable-next-line no-console
                 console.log(
-                    "@cimo/webSocket - Server - Service.ts - create() - onEnd",
+                    "@cimo/webSocket - Server => Service.ts => create() => onEnd()",
                     `Client ${clientId} - Ip: ${socket.remoteAddress || ""} disconnected`
                 );
 
@@ -198,7 +203,7 @@ export default class CwsServer {
 
         if (!client) {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Server - Service.ts - checkClient()", `Client ${clientId} not exists!`);
+            console.log("@cimo/webSocket - Server => Service.ts => checkClient()", `Client ${clientId} not exists!`);
 
             return undefined;
         }
@@ -256,7 +261,7 @@ export default class CwsServer {
                 client.fragmentList.push(payload);
             } else if (client.opCode === 0x0a) {
                 // eslint-disable-next-line no-console
-                console.log("@cimo/webSocket - Server - Service.ts - handleFrame()", `Client ${clientId} pong.`);
+                //console.log("@cimo/webSocket - Server => Service.ts => handleFrame()", `Client ${clientId} pong.`);
             }
 
             if (fin) {
@@ -280,12 +285,16 @@ export default class CwsServer {
         }
 
         client.intervalPing = setInterval(() => {
-            if (client.socket && client.socket.writable) {
-                const frame = Buffer.alloc(2);
-                frame[0] = 0x89;
-                frame[1] = 0x00;
+            if (this.modePing === 1) {
+                if (client.socket && client.socket.writable) {
+                    const frame = Buffer.alloc(2);
+                    frame[0] = 0x89;
+                    frame[1] = 0x00;
 
-                client.socket.write(frame);
+                    client.socket.write(frame);
+                }
+            } else if (this.modePing === 2) {
+                this.sendData(clientId, 1, "", "ping");
             }
         }, this.timePing);
     };

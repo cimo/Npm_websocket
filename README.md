@@ -2,6 +2,12 @@
 
 Websocket (server/client). Light, fast and secure.
 
+## Pack
+
+1. npm run pack
+2. Copy the file "cimo-websocket-x.x.x.tgz" in the project root folder.
+3. In the "package.json" file insert: "@cimo/websocket": "file:cimo-websocket-x.x.x.tgz"
+
 ## Publish
 
 1. npm run build
