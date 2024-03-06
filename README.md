@@ -1,6 +1,7 @@
 # Websocket
 
 Websocket (server/client). Light, fast and secure.
+Write with native Typescript code and no dependencies is used.
 
 ## Pack
 
@@ -32,7 +33,7 @@ import * as ControllerTest from "../controller/Test";
 
 ...
 
-const cwsServer = new CwsServer(server);
+const cwsServer = new CwsServer(server, "secret-key");
 
 ControllerTester.websocket(cwsServer);
 
@@ -51,7 +52,8 @@ import { CwsServer } from "@cimo/websocket";
 export const websocket = (cwsServer: CwsServer, cp: Cp) => {
     cwsServer.receiveData("action_test", (clientId, data) => {
         if (typeof data === "string") {
-            cwsServer.sendData(clientId, 1, JSON.stringify({ test: "end" }), "action_test");
+            const requestWsData = { test: "end" } as Record<string, string>;
+            cwsServer.sendData(clientId, 1, JSON.stringify(requestWsData), "action_test");
         }
     });
 };
@@ -75,15 +77,16 @@ const cwsClient = new CwsClient("wss://localhost");
 cwsClient.checkConnection(() => {
     cwsClient.receiveData("action_test", (data) => {
         if (typeof data === "string") {
-            const message = JSON.parse(data) as Record<string, string>;
+            const responseWsData = JSON.parse(data) as Record<string, string>;
 
-            console.log(message);
+            console.log(responseWsData);
         }
     });
 });
 
 elementButton.addEventListener("click", (event) => {
-    cwsClient.sendData(1, JSON.stringify({ test: "start" }), "action_test");
+    const requestWsData = { test: "start" } as Record<string, string>;
+    cwsClient.sendData(1, JSON.stringify(requestWsData), "action_test");
 });
 
 ...

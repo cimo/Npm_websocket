@@ -6,6 +6,7 @@ import * as Interface from "./Interface";
 
 export default class CwsServer {
     private clientList: Map<string, Interface.Iclient>;
+    private secretKey: string;
     private modePing: number;
     private timePing: number;
     private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
@@ -14,8 +15,9 @@ export default class CwsServer {
         return this.clientList;
     };
 
-    constructor(server: Interface.IhttpsServer, modePing = 1, timePing = 25000) {
+    constructor(server: Interface.IhttpsServer, secretKey: string, modePing = 1, timePing = 25000) {
         this.clientList = new Map();
+        this.secretKey = secretKey;
         this.modePing = modePing;
         this.timePing = timePing;
         this.handleReceiveDataList = new Map();
@@ -31,16 +33,18 @@ export default class CwsServer {
         }
 
         if (client && client.socket && client.socket.writable) {
+            client.lastAction = Date.now();
+
             let buffer: Buffer = Buffer.alloc(0);
             let frame0 = 0;
 
             if (mode === 1) {
-                const json = {
+                const jsonMessage = {
                     tag: `cws_${tag}`,
-                    message: data
+                    data
                 } as Interface.Imessage;
 
-                buffer = Buffer.from(JSON.stringify(json));
+                buffer = Buffer.from(JSON.stringify(jsonMessage));
                 frame0 = 0x81;
             } else if (mode === 2) {
                 buffer = Buffer.from(data);
@@ -73,17 +77,18 @@ export default class CwsServer {
         }
     };
 
+    sendDataDownload = (clientId: string, filename: string, file: Buffer) => {
+        const jsonMessage = { filename };
+        this.sendData(clientId, 1, JSON.stringify(jsonMessage), "download");
+        this.sendData(clientId, 2, file);
+    };
+
     sendDataBroadcast = (data: string, clientId?: string) => {
         for (const [index] of this.clientList) {
             if (!clientId || (clientId && clientId !== index)) {
                 this.sendData(index, 1, data, "broadcast");
             }
         }
-    };
-
-    sendDataDownload = (clientId: string, filename: string, file: Buffer) => {
-        this.sendData(clientId, 1, JSON.stringify({ filename }), "download");
-        this.sendData(clientId, 2, file);
     };
 
     receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
@@ -97,9 +102,9 @@ export default class CwsServer {
 
         this.receiveData("upload", (clientId, data) => {
             if (typeof data === "string") {
-                const message = JSON.parse(data) as Record<string, string>;
+                const jsonMessage = JSON.parse(data) as Interface.Ifile;
 
-                filename = message.filename;
+                filename = jsonMessage.filename;
             } else {
                 callback(clientId, data, filename);
 
@@ -124,45 +129,30 @@ export default class CwsServer {
 
             socket.write(this.responseHeader(request).join("\r\n"));
 
-            const clientId = this.generateClientId();
-
-            this.clientList.set(clientId, {
-                socket,
-                buffer: Buffer.alloc(0),
-                opCode: -1,
-                fragmentList: [],
-                intervalPing: undefined
-            });
-
-            this.ping(clientId);
-
-            // eslint-disable-next-line no-console
-            console.log(
-                "@cimo/webSocket - Server => Service.ts => create() => onUpgrade()",
-                `Client ${clientId} - Ip: ${socket.remoteAddress || ""} connected`
-            );
-
-            this.sendData(clientId, 1, clientId, "client_connection");
-
-            this.sendDataBroadcast(`Client ${clientId} connected`, clientId);
+            const clientId = this.clientConnection(socket);
 
             let messageTagUpload = "";
 
             socket.on("data", (data: Buffer) => {
                 this.handleFrame(clientId, data, (clientOpCode, clientFragmentList) => {
                     if (clientOpCode === 1) {
-                        const json = JSON.parse(clientFragmentList as unknown as string) as Interface.Imessage;
+                        const jsonMessage = JSON.parse(clientFragmentList as unknown as string) as Interface.Imessage;
 
-                        if (json.tag === "cws_broadcast") {
-                            this.sendDataBroadcast(json.message, clientId);
-                        } else if (json.tag === "cws_pong") {
+                        if (jsonMessage.tag === "cws_client_connected") {
+                            const jsonMessage = { result: `Client ${clientId} connected.`, tag: "connection" };
+                            this.sendDataBroadcast(JSON.stringify(jsonMessage), clientId);
+                        } else if (jsonMessage.tag === "cws_client_reconnection") {
+                            this.clientReconnection(socket, clientId);
+                        } else if (jsonMessage.tag === "cws_pong") {
                             // eslint-disable-next-line no-console
-                            //console.log("@cimo/webSocket - Server => Service.ts => create()", `Client ${clientId} pong.`);
-                        } else if (json.tag === "cws_upload") {
-                            messageTagUpload = json.tag;
+                            //console.log("@cimo/webSocket - Server => Service.ts => create() => onUpgrade() => onData() => cws_pong", `Client ${clientId} pong.`);
+                        } else if (jsonMessage.tag === "cws_upload") {
+                            messageTagUpload = jsonMessage.tag;
+                        } else if (jsonMessage.tag === "cws_broadcast") {
+                            this.sendDataBroadcast(jsonMessage.data, clientId);
                         }
 
-                        this.handleReceiveData(json.tag, clientId, json.message);
+                        this.handleReceiveData(jsonMessage.tag, clientId, jsonMessage.data);
                     } else if ((clientOpCode === 0 || clientOpCode === 2) && messageTagUpload) {
                         this.handleReceiveData(messageTagUpload, clientId, clientFragmentList);
 
@@ -172,15 +162,7 @@ export default class CwsServer {
             });
 
             socket.on("end", () => {
-                // eslint-disable-next-line no-console
-                console.log(
-                    "@cimo/webSocket - Server => Service.ts => create() => onEnd()",
-                    `Client ${clientId} - Ip: ${socket.remoteAddress || ""} disconnected`
-                );
-
-                this.sendDataBroadcast(`Client ${clientId} disconnected`, clientId);
-
-                this.cleanup(clientId);
+                this.clientDisconnection(socket, clientId);
             });
         });
     };
@@ -193,9 +175,7 @@ export default class CwsServer {
     };
 
     private generateClientId(): string {
-        const randomBytes = Crypto.randomBytes(16);
-
-        return randomBytes.toString("hex");
+        return Crypto.randomBytes(20).toString("hex");
     }
 
     private checkClient = (clientId: string) => {
@@ -203,7 +183,7 @@ export default class CwsServer {
 
         if (!client) {
             // eslint-disable-next-line no-console
-            console.log("@cimo/webSocket - Server => Service.ts => checkClient()", `Client ${clientId} not exists!`);
+            console.log("@cimo/webSocket - Server => Service.ts => checkClient()", `Client ${clientId} doesn't exists!`);
 
             return undefined;
         }
@@ -215,6 +195,12 @@ export default class CwsServer {
         const client = this.checkClient(clientId);
 
         if (!client) {
+            return;
+        }
+
+        const verifySignature = this.verifySignature(clientId, client.signature);
+
+        if (!verifySignature) {
             return;
         }
 
@@ -310,16 +296,92 @@ export default class CwsServer {
     };
 
     private cleanup = (clientId: string) => {
-        const client = this.checkClient(clientId);
+        const client = this.clientList.get(clientId);
 
         if (!client) {
             return;
         }
 
-        if (client.socket) {
-            client.socket.end();
+        client.socket.end();
 
-            this.clientList.delete(clientId);
+        this.clientList.delete(clientId);
+    };
+
+    private clientConnection(socket: Net.Socket) {
+        const clientId = this.generateClientId();
+        const signature = this.generateSignature(clientId);
+
+        // eslint-disable-next-line no-console
+        console.log(
+            "@cimo/webSocket - Server => Service.ts => clientConnection()",
+            `Connection request from -> Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
+        );
+
+        this.clientList.set(clientId, {
+            socket,
+            buffer: Buffer.alloc(0),
+            signature,
+            opCode: -1,
+            fragmentList: [],
+            intervalPing: undefined,
+            lastAction: Date.now()
+        });
+
+        this.sendData(clientId, 1, clientId, "client_connection");
+
+        this.ping(clientId);
+
+        return clientId;
+    }
+
+    private clientReconnection = (socket: Net.Socket, clientId: string) => {
+        const client = this.checkClient(clientId);
+
+        if (!client) {
+            return "";
         }
+
+        const verifySignature = this.verifySignature(clientId, client.signature);
+
+        if (!verifySignature) {
+            return "";
+        }
+
+        // eslint-disable-next-line no-console
+        console.log(
+            "@cimo/webSocket - Server => Service.ts => clientReconnection()",
+            `Reconnection request from -> Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
+        );
+
+        const jsonMessage = { result: `Client ${clientId} reconnected.`, tag: "reconnection" };
+        this.sendDataBroadcast(JSON.stringify(jsonMessage), clientId);
+    };
+
+    private clientDisconnection = (socket: Net.Socket, clientId: string) => {
+        // eslint-disable-next-line no-console
+        console.log(
+            "@cimo/webSocket - Server => Service.ts => clientDisconnection()",
+            `Disconnection request from -> Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
+        );
+
+        this.cleanup(clientId);
+
+        const jsonMessage = { result: `Client ${clientId} disconnected.`, tag: "disconnection" };
+        this.sendDataBroadcast(JSON.stringify(jsonMessage), clientId);
+    };
+
+    private generateSignature = (data: string) => {
+        return Crypto.createHmac("sha256", this.secretKey).update(data).digest("hex");
+    };
+
+    private verifySignature = (data: string, signature: string) => {
+        if (signature !== this.generateSignature(data)) {
+            // eslint-disable-next-line no-console
+            console.log("@cimo/webSocket - Server => Service.ts => verifySignature()", `Wrong signature!`);
+
+            return false;
+        }
+
+        return true;
     };
 }

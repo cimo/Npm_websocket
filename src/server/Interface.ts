@@ -6,14 +6,20 @@ export { Server as IhttpsServer };
 export interface Iclient {
     socket: Net.Socket;
     buffer: Buffer;
+    signature: string;
     opCode: number;
     fragmentList: Buffer[];
     intervalPing: NodeJS.Timeout | undefined;
+    lastAction: number;
 }
 
 export interface Imessage {
     tag: string;
-    message: string;
+    data: string;
+}
+
+export interface Ifile {
+    filename: string;
 }
 
 export interface IcallbackReceiveMessage {

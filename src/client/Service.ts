@@ -2,28 +2,32 @@
 import * as Interface from "./Interface";
 
 export default class CwsClient {
-    private clientId: string;
     private address: string;
     private ws: WebSocket | undefined;
+    private clientId: string;
     private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
     private countCheckConnection: number;
-    private countCheckConnectionLimit: number;
     private intervalCheckConnection: NodeJS.Timeout | undefined;
-    private callbackCheckConnection: (() => void) | undefined;
+    private callbackCheckConnection: ((mode: string) => void) | undefined;
+    private intervalReconnection: NodeJS.Timeout | undefined;
+    private countCheckReconnection: number;
+    private countCheckLimit: number;
 
     getClientId = () => {
         return this.clientId;
     };
 
-    constructor(address: string, countCheckConnectionLimit = 25) {
-        this.clientId = "";
+    constructor(address: string, countCheckLimit = 25) {
         this.address = address;
         this.ws = undefined;
+        this.clientId = "";
         this.handleReceiveDataList = new Map();
         this.countCheckConnection = 0;
-        this.countCheckConnectionLimit = countCheckConnectionLimit;
         this.intervalCheckConnection = undefined;
         this.callbackCheckConnection = undefined;
+        this.intervalReconnection = undefined;
+        this.countCheckReconnection = 0;
+        this.countCheckLimit = countCheckLimit;
 
         this.create();
     }
@@ -31,12 +35,11 @@ export default class CwsClient {
     sendData = (mode: number, data: string | ArrayBuffer, tag = "") => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             if (mode === 1) {
-                const json = {
+                const jsonMessage = {
                     tag: `cws_${tag}`,
-                    message: data
+                    data
                 } as Interface.Imessage;
-
-                this.ws.send(JSON.stringify(json));
+                this.ws.send(JSON.stringify(jsonMessage));
             } else if (mode === 2) {
                 this.ws.send(data);
             }
@@ -46,13 +49,14 @@ export default class CwsClient {
         }
     };
 
-    sendDataBroadcast = (data: string) => {
-        this.sendData(1, data, "broadcast");
+    sendDataUpload = (filename: string, file: ArrayBuffer) => {
+        const jsonMessage = { filename };
+        this.sendData(1, JSON.stringify(jsonMessage), "upload");
+        this.sendData(2, file);
     };
 
-    sendDataUpload = (filename: string, data: ArrayBuffer) => {
-        this.sendData(1, JSON.stringify({ filename }), "upload");
-        this.sendData(2, data);
+    sendDataBroadcast = (data: string) => {
+        this.sendData(1, data, "broadcast");
     };
 
     receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
@@ -66,9 +70,9 @@ export default class CwsClient {
 
         this.receiveData("download", (data) => {
             if (typeof data === "string") {
-                const message = JSON.parse(data) as Record<string, string>;
+                const jsonMessage = JSON.parse(data) as Interface.Ifile;
 
-                filename = message.filename;
+                filename = jsonMessage.filename;
             } else {
                 callback(data, filename);
 
@@ -83,9 +87,11 @@ export default class CwsClient {
         }
     };
 
-    checkConnection = (callback: () => void) => {
-        if (this.countCheckConnection > this.countCheckConnectionLimit) {
+    checkConnection = (callback: (mode: string) => void) => {
+        if (this.countCheckConnection > this.countCheckLimit) {
             clearInterval(this.intervalCheckConnection);
+
+            return;
         }
 
         if (!this.callbackCheckConnection) {
@@ -95,16 +101,43 @@ export default class CwsClient {
         if (this.ws) {
             if (this.ws.readyState === WebSocket.OPEN) {
                 clearInterval(this.intervalCheckConnection);
-                this.intervalCheckConnection = undefined;
 
                 this.countCheckConnection = 0;
 
-                this.callbackCheckConnection();
-            } else if (!this.intervalCheckConnection && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.CLOSED)) {
+                this.callbackCheckConnection("connection");
+            } else if (this.countCheckConnection === 0) {
                 this.intervalCheckConnection = setInterval(() => {
+                    this.countCheckConnection++;
+
                     this.checkConnection(callback);
-                }, 1000);
+                }, 3000);
             }
+        }
+    };
+
+    checkReconnection = (mode: string) => {
+        if (this.countCheckReconnection > this.countCheckLimit) {
+            clearInterval(this.intervalReconnection);
+
+            return;
+        }
+
+        if (mode === "end") {
+            clearInterval(this.intervalReconnection);
+
+            this.countCheckReconnection = 0;
+
+            if (this.callbackCheckConnection) {
+                this.callbackCheckConnection("reconnection");
+            }
+        } else if (mode === "start" && this.countCheckReconnection === 0) {
+            this.intervalReconnection = setInterval(() => {
+                this.countCheckReconnection++;
+
+                if (!this.ws) {
+                    this.create();
+                }
+            }, 3000);
         }
     };
 
@@ -122,17 +155,25 @@ export default class CwsClient {
         this.ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
             if (this.ws) {
                 if (typeof event.data === "string") {
-                    const json = JSON.parse(event.data) as Interface.Imessage;
+                    const jsonMessage = JSON.parse(event.data) as Interface.Imessage;
 
-                    if (json.tag === "cws_client_connection") {
-                        this.clientId = json.message;
-                    } else if (json.tag === "cws_ping") {
+                    if (jsonMessage.tag === "cws_client_connection") {
+                        if (!this.clientId) {
+                            this.sendData(1, "", "client_connected");
+                        } else {
+                            this.sendData(1, "", "client_reconnection");
+
+                            this.checkReconnection("end");
+                        }
+
+                        this.clientId = jsonMessage.data;
+                    } else if (jsonMessage.tag === "cws_ping") {
                         this.sendData(1, "", "pong");
-                    } else if (json.tag === "cws_download") {
-                        messageTagDownload = json.tag;
+                    } else if (jsonMessage.tag === "cws_download") {
+                        messageTagDownload = jsonMessage.tag;
                     }
 
-                    this.handleReceiveData(json.tag, json.message);
+                    this.handleReceiveData(jsonMessage.tag, jsonMessage.data);
                 } else if (typeof event.data !== "string" && messageTagDownload) {
                     const view = new DataView(event.data);
 
@@ -149,15 +190,7 @@ export default class CwsClient {
 
             this.cleanup();
 
-            if (this.countCheckConnection < this.countCheckConnectionLimit) {
-                this.countCheckConnection++;
-
-                this.create();
-
-                this.checkConnection(() => {
-                    //...
-                });
-            }
+            this.checkReconnection("start");
         };
     };
 
@@ -172,7 +205,6 @@ export default class CwsClient {
     };
 
     private cleanup = () => {
-        this.clientId = "";
         this.ws = undefined;
     };
 }

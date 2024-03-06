@@ -1,6 +1,6 @@
 {
     "name": "@cimo/websocket",
-    "version": "1.1.27",
+    "version": "1.1.29",
     "description": "Websocket (server/client). Light, fast and secure.",
     "author": "cimo",
     "license": "MIT",
@@ -39,6 +39,8 @@
         "nodejs",
         "express",
         "typescript",
-        "cimo"
+        "cimo",
+        "native",
+        "no dependencies"
     ]
 }

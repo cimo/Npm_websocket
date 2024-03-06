@@ -4,7 +4,11 @@ export interface Iclient {
 
 export interface Imessage {
     tag: string;
-    message: string;
+    data: string;
+}
+
+export interface Ifile {
+    filename: string;
 }
 
 export interface IcallbackReceiveMessage {
