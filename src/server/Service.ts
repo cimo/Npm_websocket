@@ -41,7 +41,7 @@ export default class CwsServer {
             if (mode === 1) {
                 const jsonMessage = {
                     tag: `cws_${tag}`,
-                    data
+                    data: typeof data === "string" ? Buffer.from(data).toString("base64") : data
                 } as Interface.Imessage;
 
                 buffer = Buffer.from(JSON.stringify(jsonMessage));
@@ -78,8 +78,7 @@ export default class CwsServer {
     };
 
     sendDataDownload = (clientId: string, filename: string, file: Buffer) => {
-        const jsonMessage = { filename };
-        this.sendData(clientId, 1, JSON.stringify(jsonMessage), "download");
+        this.sendData(clientId, 1, filename, "download");
         this.sendData(clientId, 2, file);
     };
 
@@ -93,7 +92,9 @@ export default class CwsServer {
 
     receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
         this.handleReceiveDataList.set(`cws_${tag}`, (clientId, data) => {
-            callback(clientId, data);
+            const resultData = typeof data === "string" ? Buffer.from(data, "base64").toString() : data;
+
+            callback(clientId, resultData);
         });
     };
 
@@ -102,9 +103,7 @@ export default class CwsServer {
 
         this.receiveData("upload", (clientId, data) => {
             if (typeof data === "string") {
-                const jsonMessage = JSON.parse(data) as Interface.Ifile;
-
-                filename = jsonMessage.filename;
+                filename = data;
             } else {
                 callback(clientId, data, filename);
 

@@ -37,7 +37,7 @@ export default class CwsClient {
             if (mode === 1) {
                 const jsonMessage = {
                     tag: `cws_${tag}`,
-                    data
+                    data: typeof data === "string" ? window.btoa(String.fromCharCode.apply(null, Array.from(new TextEncoder().encode(data)))) : data
                 } as Interface.Imessage;
                 this.ws.send(JSON.stringify(jsonMessage));
             } else if (mode === 2) {
@@ -50,8 +50,7 @@ export default class CwsClient {
     };
 
     sendDataUpload = (filename: string, file: ArrayBuffer) => {
-        const jsonMessage = { filename };
-        this.sendData(1, JSON.stringify(jsonMessage), "upload");
+        this.sendData(1, filename, "upload");
         this.sendData(2, file);
     };
 
@@ -61,7 +60,17 @@ export default class CwsClient {
 
     receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
         this.handleReceiveDataList.set(`cws_${tag}`, (data) => {
-            callback(data);
+            let resultData: string | DataView;
+
+            if (typeof data === "string") {
+                const decoded = window.atob(data);
+
+                resultData = new TextDecoder("utf-8").decode(new Uint8Array([...decoded].map((c) => c.charCodeAt(0))));
+            } else {
+                resultData = data;
+            }
+
+            callback(resultData);
         });
     };
 
@@ -70,9 +79,7 @@ export default class CwsClient {
 
         this.receiveData("download", (data) => {
             if (typeof data === "string") {
-                const jsonMessage = JSON.parse(data) as Interface.Ifile;
-
-                filename = jsonMessage.filename;
+                filename = data;
             } else {
                 callback(data, filename);
 

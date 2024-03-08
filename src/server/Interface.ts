@@ -18,10 +18,6 @@ export interface Imessage {
     data: string;
 }
 
-export interface Ifile {
-    filename: string;
-}
-
 export interface IcallbackReceiveMessage {
     (clientId: string, data: string | Buffer[]);
 }
