@@ -25,7 +25,7 @@ export default class CwsServer {
         this.create(server);
     }
 
-    sendData = (clientId: string, mode: number, data: string | Buffer, tag = "") => {
+    sendData = (clientId: string, mode: number, data: string | Buffer, tag = "", timeout = 0) => {
         const client = this.checkClient(clientId);
 
         if (!client) {
@@ -73,7 +73,15 @@ export default class CwsServer {
 
             buffer.copy(frame, frame.length - length);
 
-            client.socket.write(frame);
+            if (mode === 1 && timeout > 0) {
+                const timeoutEvent = setTimeout(() => {
+                    clearTimeout(timeoutEvent);
+
+                    client.socket.write(frame);
+                }, timeout);
+            } else {
+                client.socket.write(frame);
+            }
         }
     };
 

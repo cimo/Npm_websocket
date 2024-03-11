@@ -32,14 +32,23 @@ export default class CwsClient {
         this.create();
     }
 
-    sendData = (mode: number, data: string | ArrayBuffer, tag = "") => {
+    sendData = (mode: number, data: string | ArrayBuffer, tag = "", timeout = 0) => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             if (mode === 1) {
                 const jsonMessage = {
                     tag: `cws_${tag}`,
                     data: typeof data === "string" ? window.btoa(String.fromCharCode.apply(null, Array.from(new TextEncoder().encode(data)))) : data
                 } as Interface.Imessage;
-                this.ws.send(JSON.stringify(jsonMessage));
+
+                if (timeout > 0) {
+                    const timeoutEvent = setTimeout(() => {
+                        clearTimeout(timeoutEvent);
+
+                        this.ws?.send(JSON.stringify(jsonMessage));
+                    }, timeout);
+                } else {
+                    this.ws.send(JSON.stringify(jsonMessage));
+                }
             } else if (mode === 2) {
                 this.ws.send(data);
             }
