@@ -1,11 +1,11 @@
 // Source
-import * as Interface from "./Interface";
+import * as Model from "./Model";
 
 export default class CwsClient {
     private address: string;
     private ws: WebSocket | undefined;
     private clientId: string;
-    private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
+    private handleReceiveDataList: Map<string, Model.IcallbackReceiveMessage>;
     private countCheckConnection: number;
     private intervalCheckConnection: NodeJS.Timeout | undefined;
     private callbackCheckConnection: ((mode: string) => void) | undefined;
@@ -13,7 +13,7 @@ export default class CwsClient {
     private countCheckReconnection: number;
     private countCheckLimit: number;
 
-    getClientId = () => {
+    getClientId = (): string => {
         return this.clientId;
     };
 
@@ -32,13 +32,13 @@ export default class CwsClient {
         this.create();
     }
 
-    sendData = (mode: number, data: string | ArrayBuffer, tag = "", timeout = 0) => {
+    sendData = (mode: number, data: string | ArrayBuffer, tag = "", timeout = 0): void => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             if (mode === 1) {
                 const jsonMessage = {
                     tag: `cws_${tag}`,
                     data: typeof data === "string" ? window.btoa(String.fromCharCode.apply(null, Array.from(new TextEncoder().encode(data)))) : data
-                } as Interface.Imessage;
+                } as Model.Imessage;
 
                 if (timeout > 0) {
                     const timeoutEvent = setTimeout(() => {
@@ -58,16 +58,16 @@ export default class CwsClient {
         }
     };
 
-    sendDataUpload = (filename: string, file: ArrayBuffer) => {
+    sendDataUpload = (filename: string, file: ArrayBuffer): void => {
         this.sendData(1, filename, "upload");
         this.sendData(2, file);
     };
 
-    sendDataBroadcast = (data: string) => {
+    sendDataBroadcast = (data: string): void => {
         this.sendData(1, data, "broadcast");
     };
 
-    receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
+    receiveData = (tag: string, callback: Model.IcallbackReceiveMessage): void => {
         this.handleReceiveDataList.set(`cws_${tag}`, (data) => {
             let resultData: string | DataView;
 
@@ -83,7 +83,7 @@ export default class CwsClient {
         });
     };
 
-    receiveDataDownload = (callback: Interface.IcallbackReceiveDownload) => {
+    receiveDataDownload = (callback: Model.IcallbackReceiveDownload): void => {
         let filename = "";
 
         this.receiveData("download", (data) => {
@@ -97,13 +97,13 @@ export default class CwsClient {
         });
     };
 
-    receiveDataOff = (tag: string) => {
+    receiveDataOff = (tag: string): void => {
         if (this.handleReceiveDataList.has(`cws_${tag}`)) {
             this.handleReceiveDataList.delete(`cws_${tag}`);
         }
     };
 
-    checkConnection = (callback: (mode: string) => void) => {
+    checkConnection = (callback: (mode: string) => void): void => {
         if (this.countCheckConnection > this.countCheckLimit) {
             clearInterval(this.intervalCheckConnection);
 
@@ -131,7 +131,7 @@ export default class CwsClient {
         }
     };
 
-    checkReconnection = (mode: string) => {
+    checkReconnection = (mode: string): void => {
         if (this.countCheckReconnection > this.countCheckLimit) {
             clearInterval(this.intervalReconnection);
 
@@ -157,7 +157,7 @@ export default class CwsClient {
         }
     };
 
-    private create = () => {
+    private create = (): void => {
         this.ws = new WebSocket(this.address);
         this.ws.binaryType = "arraybuffer";
 
@@ -171,7 +171,7 @@ export default class CwsClient {
         this.ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
             if (this.ws) {
                 if (typeof event.data === "string") {
-                    const jsonMessage = JSON.parse(event.data) as Interface.Imessage;
+                    const jsonMessage = JSON.parse(event.data) as Model.Imessage;
 
                     if (jsonMessage.tag === "cws_client_connection") {
                         if (!this.clientId) {
@@ -210,7 +210,7 @@ export default class CwsClient {
         };
     };
 
-    private handleReceiveData = (tag: string, data: string | DataView) => {
+    private handleReceiveData = (tag: string, data: string | DataView): void => {
         for (const [index, callback] of this.handleReceiveDataList) {
             if (tag === index) {
                 callback(data);
@@ -220,7 +220,7 @@ export default class CwsClient {
         }
     };
 
-    private cleanup = () => {
+    private cleanup = (): void => {
         this.ws = undefined;
     };
 }
