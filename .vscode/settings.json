@@ -23,5 +23,20 @@
     },
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
-    }
+    },
+    "l13Diff.exclude": [
+        ".git",
+        ".cache",
+        ".config",
+        ".local",
+        ".npm",
+        ".pki",
+        "node_modules",
+        "log",
+        "dist"
+    ],
+    "l13Diff.ignoreEndOfLine": false,
+    "l13Diff.ignoreTrimWhitespace": "default",
+    "l13Diff.ignoreByteOrderMark": false,
+    "diffEditor.ignoreTrimWhitespace": false
 }

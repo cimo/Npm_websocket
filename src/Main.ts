@@ -1,4 +1,4 @@
 import CwsServer from "./server/Service";
 
-export * as CwsServerInterface from "./server/Interface";
+export * as CwsServerModel from "./server/Model";
 export { CwsServer };

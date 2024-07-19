@@ -2,20 +2,20 @@ import * as Net from "net";
 import * as Crypto from "crypto";
 
 // Source
-import * as Interface from "./Interface";
+import * as Model from "./Model";
 
 export default class CwsServer {
-    private clientList: Map<string, Interface.Iclient>;
+    private clientList: Map<string, Model.Iclient>;
     private secretKey: string;
     private modePing: number;
     private timePing: number;
-    private handleReceiveDataList: Map<string, Interface.IcallbackReceiveMessage>;
+    private handleReceiveDataList: Map<string, Model.IcallbackReceiveMessage>;
 
-    getClientList = () => {
+    getClientList = (): Map<string, Model.Iclient> => {
         return this.clientList;
     };
 
-    constructor(server: Interface.IhttpsServer, secretKey: string, modePing = 1, timePing = 25000) {
+    constructor(server: Model.IhttpsServer, secretKey: string, modePing = 1, timePing = 25000) {
         this.clientList = new Map();
         this.secretKey = secretKey;
         this.modePing = modePing;
@@ -25,7 +25,7 @@ export default class CwsServer {
         this.create(server);
     }
 
-    sendData = (clientId: string, mode: number, data: string | Buffer, tag = "", timeout = 0) => {
+    sendData = (clientId: string, mode: number, data: string | Buffer, tag = "", timeout = 0): void => {
         const client = this.checkClient(clientId);
 
         if (!client) {
@@ -42,7 +42,7 @@ export default class CwsServer {
                 const jsonMessage = {
                     tag: `cws_${tag}`,
                     data: typeof data === "string" ? Buffer.from(data).toString("base64") : data
-                } as Interface.Imessage;
+                } as Model.Imessage;
 
                 buffer = Buffer.from(JSON.stringify(jsonMessage));
                 frame0 = 0x81;
@@ -85,12 +85,12 @@ export default class CwsServer {
         }
     };
 
-    sendDataDownload = (clientId: string, filename: string, file: Buffer) => {
+    sendDataDownload = (clientId: string, filename: string, file: Buffer): void => {
         this.sendData(clientId, 1, filename, "download");
         this.sendData(clientId, 2, file);
     };
 
-    sendDataBroadcast = (data: string, clientId?: string) => {
+    sendDataBroadcast = (data: string, clientId?: string): void => {
         for (const [index] of this.clientList) {
             if (!clientId || (clientId && clientId !== index)) {
                 this.sendData(index, 1, data, "broadcast");
@@ -98,7 +98,7 @@ export default class CwsServer {
         }
     };
 
-    receiveData = (tag: string, callback: Interface.IcallbackReceiveMessage) => {
+    receiveData = (tag: string, callback: Model.IcallbackReceiveMessage): void => {
         this.handleReceiveDataList.set(`cws_${tag}`, (clientId, data) => {
             const resultData = typeof data === "string" ? Buffer.from(data, "base64").toString() : data;
 
@@ -106,7 +106,7 @@ export default class CwsServer {
         });
     };
 
-    receiveDataUpload = (callback: Interface.IcallbackReceiveUpload) => {
+    receiveDataUpload = (callback: Model.IcallbackReceiveUpload): void => {
         let filename = "";
 
         this.receiveData("upload", (clientId, data) => {
@@ -120,13 +120,13 @@ export default class CwsServer {
         });
     };
 
-    receiveDataOff = (tag: string) => {
+    receiveDataOff = (tag: string): void => {
         if (this.handleReceiveDataList.has(`cws_${tag}`)) {
             this.handleReceiveDataList.delete(`cws_${tag}`);
         }
     };
 
-    private create = (server: Interface.IhttpsServer) => {
+    private create = (server: Model.IhttpsServer): void => {
         server.on("upgrade", (request: Request, socket: Net.Socket) => {
             if (request.headers["upgrade"] !== "websocket") {
                 socket.end("HTTP/1.1 400 Bad Request");
@@ -143,7 +143,7 @@ export default class CwsServer {
             socket.on("data", (data: Buffer) => {
                 this.handleFrame(clientId, data, (clientOpCode, clientFragmentList) => {
                     if (clientOpCode === 1) {
-                        const jsonMessage = JSON.parse(clientFragmentList as unknown as string) as Interface.Imessage;
+                        const jsonMessage = JSON.parse(clientFragmentList as unknown as string) as Model.Imessage;
 
                         if (jsonMessage.tag === "cws_client_connected") {
                             const jsonMessage = { result: `Client ${clientId} connected.`, tag: "connection" };
@@ -174,7 +174,7 @@ export default class CwsServer {
         });
     };
 
-    private responseHeader = (request: Request) => {
+    private responseHeader = (request: Request): string[] => {
         const key = (request.headers["sec-websocket-key"] as string) || "";
         const hash = Crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
 
@@ -185,7 +185,7 @@ export default class CwsServer {
         return Crypto.randomBytes(20).toString("hex");
     }
 
-    private checkClient = (clientId: string) => {
+    private checkClient = (clientId: string): Model.Iclient | undefined => {
         const client = this.clientList.get(clientId);
 
         if (!client) {
@@ -198,7 +198,7 @@ export default class CwsServer {
         return client;
     };
 
-    private handleFrame = (clientId: string, data: Buffer, callback: Interface.IcallbackHandleFrame) => {
+    private handleFrame = (clientId: string, data: Buffer, callback: Model.IcallbackHandleFrame): void => {
         const client = this.checkClient(clientId);
 
         if (!client) {
@@ -270,7 +270,7 @@ export default class CwsServer {
         }
     };
 
-    private ping = (clientId: string) => {
+    private ping = (clientId: string): void => {
         const client = this.checkClient(clientId);
 
         if (!client) {
@@ -292,7 +292,7 @@ export default class CwsServer {
         }, this.timePing);
     };
 
-    private handleReceiveData = (tag: string, clientId: string, data: string | Buffer[]) => {
+    private handleReceiveData = (tag: string, clientId: string, data: string | Buffer[]): void => {
         for (const [index, callback] of this.handleReceiveDataList) {
             if (tag === index) {
                 callback(clientId, data);
@@ -302,7 +302,7 @@ export default class CwsServer {
         }
     };
 
-    private cleanup = (clientId: string) => {
+    private cleanup = (clientId: string): void => {
         const client = this.clientList.get(clientId);
 
         if (!client) {
@@ -314,7 +314,7 @@ export default class CwsServer {
         this.clientList.delete(clientId);
     };
 
-    private clientConnection(socket: Net.Socket) {
+    private clientConnection(socket: Net.Socket): string {
         const clientId = this.generateClientId();
         const signature = this.generateSignature(clientId);
 
@@ -341,7 +341,7 @@ export default class CwsServer {
         return clientId;
     }
 
-    private clientReconnection = (socket: Net.Socket, clientId: string) => {
+    private clientReconnection = (socket: Net.Socket, clientId: string): string | undefined => {
         const client = this.checkClient(clientId);
 
         if (!client) {
@@ -364,7 +364,7 @@ export default class CwsServer {
         this.sendDataBroadcast(JSON.stringify(jsonMessage), clientId);
     };
 
-    private clientDisconnection = (socket: Net.Socket, clientId: string) => {
+    private clientDisconnection = (socket: Net.Socket, clientId: string): void => {
         // eslint-disable-next-line no-console
         console.log(
             "@cimo/webSocket - Server => Service.ts => clientDisconnection()",
@@ -377,11 +377,11 @@ export default class CwsServer {
         this.sendDataBroadcast(JSON.stringify(jsonMessage), clientId);
     };
 
-    private generateSignature = (data: string) => {
+    private generateSignature = (data: string): string => {
         return Crypto.createHmac("sha256", this.secretKey).update(data).digest("hex");
     };
 
-    private verifySignature = (data: string, signature: string) => {
+    private verifySignature = (data: string, signature: string): boolean => {
         if (signature !== this.generateSignature(data)) {
             // eslint-disable-next-line no-console
             console.log("@cimo/webSocket - Server => Service.ts => verifySignature()", `Wrong signature!`);

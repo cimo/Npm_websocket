@@ -1,13 +1,13 @@
 # Websocket
 
 Websocket (server/client). Light, fast and secure.
-Write with native Typescript code and no dependencies is used.
+Writed with native Typescript code and no dependencies are used.
 
 ## Pack
 
 1. npm run pack
-2. Copy the file "cimo-websocket-x.x.x.tgz" in the project root folder.
-3. In the "package.json" file insert: "@cimo/websocket": "file:cimo-websocket-x.x.x.tgz"
+2. Copy the file "package_name-x.x.x.tgz" in the project root folder.
+3. In the "package.json" file insert: "@cimo/package_name": "file:package_name-x.x.x.tgz"
 
 ## Publish
 
