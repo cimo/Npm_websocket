@@ -8,10 +8,5 @@
         "outDir": "./dist/client/"
     },
     "include": ["src/client/**/*.ts"],
-    "exclude": [
-        "dist",
-        "node_modules",
-        "public",
-        "src/**/*.config.ts"
-    ]
+    "exclude": ["dist", "node_modules", "public", "src/**/*.config.ts"]
 }
