@@ -15,7 +15,7 @@ export default class CwsServer {
         return this.clientList;
     };
 
-    constructor(server: Model.IhttpsServer, secretKey: string, modePing = 1, timePing = 25000) {
+    constructor(server: Model.IhttpServer.Server | Model.IhttpsServer.Server, secretKey: string, modePing = 1, timePing = 25000) {
         this.clientList = new Map();
         this.secretKey = secretKey;
         this.modePing = modePing;
@@ -126,7 +126,7 @@ export default class CwsServer {
         }
     };
 
-    private create = (server: Model.IhttpsServer): void => {
+    private create = (server: Model.IhttpServer.Server | Model.IhttpsServer.Server): void => {
         server.on("upgrade", (request: Request, socket: Net.Socket) => {
             if (request.headers["upgrade"] !== "websocket") {
                 socket.end("HTTP/1.1 400 Bad Request");

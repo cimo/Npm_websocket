@@ -1,7 +1,9 @@
-import { Server } from "https";
+import * as Http from "http";
+import * as Https from "https";
 import * as Net from "net";
 
-export { Server as IhttpsServer };
+export { Http as IhttpServer };
+export { Https as IhttpsServer };
 
 export interface Iclient {
     socket: Net.Socket;
