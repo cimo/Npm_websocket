@@ -1,6 +1,6 @@
 # Websocket
 
-Websocket (server/client). Light, fast and secure.
+Npm package, websocket (server/client). Light, fast and secure.
 Writed with native Typescript code and no dependencies are used.
 
 ## Pack
@@ -63,7 +63,7 @@ export const websocket = (cwsServer: CwsServer, cp: Cp) => {
 
 ## Client
 
--   Index.ts
+-   Client.ts
 
 ```
 ...

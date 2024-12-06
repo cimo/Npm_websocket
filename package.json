@@ -1,6 +1,6 @@
 {
     "name": "@cimo/websocket",
-    "version": "1.2.35",
+    "version": "1.2.36",
     "description": "Websocket (server/client). Light, fast and secure.",
     "author": "cimo",
     "license": "MIT",
@@ -33,11 +33,10 @@
     "keywords": [
         "websocket",
         "api",
-        "websocket api",
         "server",
         "client",
-        "nodejs",
         "express",
+        "nodejs",
         "typescript",
         "cimo",
         "native",

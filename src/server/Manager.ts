@@ -4,7 +4,7 @@ import * as Crypto from "crypto";
 // Source
 import * as Model from "./Model";
 
-export default class CwsServer {
+export default class Manager {
     private clientList: Map<string, Model.Iclient>;
     private secretKey: string;
     private modePing: number;

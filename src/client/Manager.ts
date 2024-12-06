@@ -1,7 +1,7 @@
 // Source
 import * as Model from "./Model";
 
-export default class CwsClient {
+export default class Manager {
     private address: string;
     private ws: WebSocket | undefined;
     private clientId: string;
