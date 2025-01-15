@@ -151,7 +151,6 @@ export default class Manager {
                         } else if (jsonMessage.tag === "cws_client_reconnection") {
                             this.clientReconnection(socket, clientId);
                         } else if (jsonMessage.tag === "cws_pong") {
-                            // eslint-disable-next-line no-console
                             //console.log("@cimo/webSocket - Server => Service.ts => create() => onUpgrade() => onData() => cws_pong", `Client ${clientId} pong.`);
                         } else if (jsonMessage.tag === "cws_upload") {
                             messageTagUpload = jsonMessage.tag;
@@ -253,7 +252,6 @@ export default class Manager {
             if (client.opCode === 0x01 || client.opCode === 0x02 || client.opCode === 0x00) {
                 client.fragmentList.push(payload);
             } else if (client.opCode === 0x0a) {
-                // eslint-disable-next-line no-console
                 //console.log("@cimo/webSocket - Server => Service.ts => handleFrame()", `Client ${clientId} pong.`);
             }
 
