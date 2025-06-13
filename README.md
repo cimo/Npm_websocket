@@ -1,4 +1,4 @@
-# Websocket
+# Npm_websocket
 
 Npm package, websocket (server/client). Light, fast and secure.
 Writed with native Typescript code and no dependencies are used.
