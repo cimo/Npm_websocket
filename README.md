@@ -5,8 +5,8 @@ Writed with native Typescript code and no dependencies are used.
 
 ## Pack
 
-1. npm run pack
-2. Copy the file "package_name-x.x.x.tgz" in the project root folder.
+1. npm run build
+2. Copy the file "/build/package_name-x.x.x.tgz" in the project root folder.
 3. In the "package.json" file insert: "@cimo/package_name": "file:package_name-x.x.x.tgz"
 
 ## Publish
@@ -26,7 +26,7 @@ Writed with native Typescript code and no dependencies are used.
 ```
 ...
 
-import { CwsServer } from "@cimo/websocket";
+import { CwsServer } from "@cimo/websocket/dist/src/Main";
 
 // Source
 import * as ControllerTest from "../controller/Test";
@@ -45,16 +45,15 @@ ControllerTester.websocket(cwsServer);
 ```
 ...
 
-import { CwsServer } from "@cimo/websocket";
+import { CwsServer } from "@cimo/websocket/dist/src/Main";
 
 ...
 
 export const websocket = (cwsServer: CwsServer, cp: Cp) => {
-    cwsServer.receiveData("action_test", (clientId, data) => {
-        if (typeof data === "string") {
-            const requestWsData = { test: "end" } as Record<string, string>;
-            cwsServer.sendData(clientId, 1, JSON.stringify(requestWsData), "action_test");
-        }
+    cwsServer.receiveData("action_test", (clientId, message) => {
+        console.log(message);
+
+        cwsServer.sendData(clientId, "text", { test: "end" }, "action_test");
     });
 };
 
@@ -68,25 +67,20 @@ export const websocket = (cwsServer: CwsServer, cp: Cp) => {
 ```
 ...
 
-import CwsClient from "@cimo/websocket/dist/client/Manager";
+import CwsClient from "@cimo/websocket/dist/src/client/Manager";
 
 ...
 
 const cwsClient = new CwsClient("wss://localhost");
 
 cwsClient.checkConnection(() => {
-    cwsClient.receiveData("action_test", (data) => {
-        if (typeof data === "string") {
-            const responseWsData = JSON.parse(data) as Record<string, string>;
-
-            console.log(responseWsData);
-        }
+    cwsClient.receiveData("action_test", (message) => {
+        console.log(message);
     });
 });
 
 elementButton.addEventListener("click", (event) => {
-    const requestWsData = { test: "start" } as Record<string, string>;
-    cwsClient.sendData(1, JSON.stringify(requestWsData), "action_test");
+    cwsClient.sendData("text", { test: "start" }, "action_test");
 });
 
 ...

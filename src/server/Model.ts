@@ -12,7 +12,19 @@ export interface Iclient {
     opCode: number;
     fragmentList: Buffer[];
     intervalPing: NodeJS.Timeout | undefined;
-    lastAction: number;
+    lastPong: number;
+}
+
+export interface IcallbackHandleFrame {
+    (clientOpCode: number, clientFragmentList: Buffer[]): void;
+}
+
+export interface IcallbackHandleResponse {
+    (clientId: string, message: ThandleMessage): void;
+}
+
+export interface IcallbackReceiveUpload {
+    (clientId: string, messageList: Buffer[], filename: string): void;
 }
 
 export interface Imessage {
@@ -20,14 +32,5 @@ export interface Imessage {
     data: string;
 }
 
-export interface IcallbackReceiveMessage {
-    (clientId: string, data: string | Buffer[]);
-}
-
-export interface IcallbackReceiveUpload {
-    (clientId: string, data: Buffer[], filename: string);
-}
-
-export interface IcallbackHandleFrame {
-    (clientOpCode: number, clientFragmentList: Buffer[]);
-}
+export type TsendMessage = string | Record<string, unknown> | Buffer;
+export type ThandleMessage = string | Buffer[];
