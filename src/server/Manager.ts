@@ -2,16 +2,16 @@ import * as Net from "net";
 import * as Crypto from "crypto";
 
 // Source
-import * as HelperSrc from "../HelperSrc";
-import * as Model from "./Model";
+import * as helperSrc from "../HelperSrc";
+import * as model from "./Model";
 
 export default class Manager {
     private secretKey: string;
     private timePing: number;
-    private clientMap: Map<string, Model.Iclient>;
-    private handleResponseMap: Map<string, Model.IcallbackHandleResponse>;
+    private clientMap: Map<string, model.Iclient>;
+    private callbackHandleResponseMap: Map<string, model.IcallbackHandleResponse>;
 
-    private responseHeader = (request: Model.IhttpServer.IncomingMessage): string[] => {
+    private responseHeader = (request: model.IhttpServer.IncomingMessage): string[] => {
         const key = request.headers["sec-websocket-key"];
 
         if (!key || Array.isArray(key)) {
@@ -43,7 +43,7 @@ export default class Manager {
                 const now = Date.now();
 
                 if (now - client.lastPong > this.timePing * 2) {
-                    HelperSrc.writeLog("@cimo/websocket - Server - Manager.ts - ping() - setInterval()", `Client ${clientId} pong timeout.`);
+                    helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - ping() - setInterval()", `Client ${clientId} pong timeout.`);
 
                     this.clientDisconnection(client.socket, clientId);
 
@@ -63,7 +63,7 @@ export default class Manager {
         const clientId = this.generateClientId();
         const signature = this.generateSignature(clientId);
 
-        HelperSrc.writeLog(
+        helperSrc.writeLog(
             "@cimo/websocket - Server - Manager.ts - clientConnection()",
             `Connection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
         );
@@ -78,14 +78,14 @@ export default class Manager {
             lastPong: Date.now()
         });
 
-        this.sendData(clientId, "text", clientId, "client_connection");
+        this.sendDataBroadcast({ tag: "connection", result: `Client ${clientId} connected.` }, clientId);
 
         this.ping(clientId);
 
         return clientId;
     }
 
-    private checkClient = (clientId: string): Model.Iclient => {
+    private checkClient = (clientId: string): model.Iclient => {
         const client = this.clientMap.get(clientId);
 
         if (!client) {
@@ -103,7 +103,7 @@ export default class Manager {
         return true;
     };
 
-    private handleFrame = (clientId: string, data: Buffer, callback: Model.IcallbackHandleFrame): void => {
+    private handleFrame = (clientId: string, data: Buffer, callback: model.IcallbackHandleFrame): void => {
         const client = this.checkClient(clientId);
 
         if (!client) {
@@ -184,29 +184,8 @@ export default class Manager {
         }
     };
 
-    private clientReconnection = (socket: Net.Socket, clientId: string): void => {
-        const client = this.checkClient(clientId);
-
-        if (!client) {
-            return;
-        }
-
-        const isSignatureVerified = this.verifySignature(clientId, client.signature);
-
-        if (!isSignatureVerified) {
-            return;
-        }
-
-        HelperSrc.writeLog(
-            "@cimo/websocket - Server - Manager.ts - clientReconnection()",
-            `Reconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
-        );
-
-        this.sendDataBroadcast({ result: `Client ${clientId} reconnected.`, tag: "reconnection" }, clientId);
-    };
-
-    private handleResponse = (clientId: string, tag: string, message: Model.ThandleMessage): void => {
-        for (const [index, callback] of this.handleResponseMap) {
+    private handleResponse = (clientId: string, tag: string, message: model.ThandleMessage): void => {
+        for (const [index, callback] of this.callbackHandleResponseMap) {
             if (tag === index) {
                 callback(clientId, message);
 
@@ -232,18 +211,18 @@ export default class Manager {
     };
 
     private clientDisconnection = (socket: Net.Socket, clientId: string): void => {
-        HelperSrc.writeLog(
+        helperSrc.writeLog(
             "@cimo/websocket - Server - Manager.ts - clientDisconnection()",
             `Disconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
         );
 
-        this.cleanup(clientId);
+        this.sendDataBroadcast({ tag: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
 
-        this.sendDataBroadcast({ result: `Client ${clientId} disconnected.`, tag: "disconnection" }, clientId);
+        this.cleanup(clientId);
     };
 
-    private create = (server: Model.IhttpServer.Server | Model.IhttpsServer.Server): void => {
-        server.on("upgrade", (request: Model.IhttpServer.IncomingMessage, socket: Net.Socket) => {
+    private create = (server: model.IhttpServer.Server | model.IhttpsServer.Server): void => {
+        server.on("upgrade", (request: model.IhttpServer.IncomingMessage, socket: Net.Socket) => {
             if (request.headers["upgrade"] && request.headers["upgrade"].toLowerCase() !== "websocket") {
                 socket.end("HTTP/1.1 400 Bad Request");
 
@@ -265,21 +244,17 @@ export default class Manager {
                             return;
                         }
 
-                        if (!HelperSrc.isJson(messageConcat)) {
+                        if (!helperSrc.isJson(messageConcat)) {
                             return;
                         }
 
-                        const messageObject: Model.Imessage = JSON.parse(messageConcat);
+                        const messageObject: model.Imessage = JSON.parse(messageConcat);
 
                         if (!messageObject || typeof messageObject.tag !== "string") {
                             return;
                         }
 
-                        if (messageObject.tag === "cws_client_connected") {
-                            this.sendDataBroadcast({ result: `Client ${clientId} connected.`, tag: "connection" }, clientId);
-                        } else if (messageObject.tag === "cws_client_reconnection") {
-                            this.clientReconnection(socket, clientId);
-                        } else if (messageObject.tag === "cws_upload") {
+                        if (messageObject.tag === "cws_upload") {
                             messageTagUpload = messageObject.tag;
                         } else if (messageObject.tag === "cws_broadcast") {
                             this.sendDataBroadcast(messageObject.data, clientId);
@@ -300,20 +275,20 @@ export default class Manager {
         });
     };
 
-    constructor(server: Model.IhttpServer.Server | Model.IhttpsServer.Server, secretKeyValue: string, timePingValue = 25000) {
+    constructor(server: model.IhttpServer.Server | model.IhttpsServer.Server, secretKeyValue: string, timePingValue = 25000) {
         this.secretKey = secretKeyValue;
         this.timePing = timePingValue;
         this.clientMap = new Map();
-        this.handleResponseMap = new Map();
+        this.callbackHandleResponseMap = new Map();
 
         this.create(server);
     }
 
-    getClientMap = (): Map<string, Model.Iclient> => {
+    getClientMap = (): Map<string, model.Iclient> => {
         return this.clientMap;
     };
 
-    sendData = (clientId: string, mode: string, message: Model.TsendMessage, tag = "", timeout = 0): void => {
+    sendData = (clientId: string, mode: string, message: model.TsendMessage, tag = "", timeout = 0): void => {
         const client = this.checkClient(clientId);
 
         if (!client) {
@@ -337,7 +312,7 @@ export default class Manager {
                     resultMessage = JSON.stringify(message);
                 }
 
-                const messageObject: Model.Imessage = {
+                const messageObject: model.Imessage = {
                     tag: `cws_${tag}`,
                     data: Buffer.from(resultMessage).toString("base64")
                 };
@@ -386,13 +361,13 @@ export default class Manager {
     };
 
     receiveData = <T>(tag: string, callback: (clientId: string, message: T) => void): void => {
-        this.handleResponseMap.set(`cws_${tag}`, (clientId, message) => {
+        this.callbackHandleResponseMap.set(`cws_${tag}`, (clientId, message) => {
             let resultMessage: T;
 
             if (typeof message === "string") {
                 const decoded = Buffer.from(message, "base64").toString();
 
-                if (!HelperSrc.isJson(decoded)) {
+                if (!helperSrc.isJson(decoded)) {
                     resultMessage = decoded as T;
                 } else {
                     resultMessage = JSON.parse(decoded) as T;
@@ -410,10 +385,10 @@ export default class Manager {
         this.sendData(clientId, "binary", file, "", 100);
     };
 
-    receiveDataUpload = (callback: Model.IcallbackReceiveUpload): void => {
+    receiveDataUpload = (callback: model.IcallbackReceiveDataUpload): void => {
         let filename = "";
 
-        this.receiveData("upload", (clientId, message: Model.ThandleMessage) => {
+        this.receiveData("upload", (clientId, message: model.ThandleMessage) => {
             if (typeof message === "string") {
                 filename = message;
             } else {
@@ -425,12 +400,12 @@ export default class Manager {
     };
 
     receiveDataOff = (tag: string): void => {
-        if (this.handleResponseMap.has(`cws_${tag}`)) {
-            this.handleResponseMap.delete(`cws_${tag}`);
+        if (this.callbackHandleResponseMap.has(`cws_${tag}`)) {
+            this.callbackHandleResponseMap.delete(`cws_${tag}`);
         }
     };
 
-    sendDataBroadcast = (message: Model.TsendMessage, excludeClientId?: string): void => {
+    sendDataBroadcast = (message: model.TsendMessage, excludeClientId?: string): void => {
         for (const clientId of this.clientMap.keys()) {
             if (clientId !== excludeClientId) {
                 this.sendData(clientId, "text", message, "broadcast");

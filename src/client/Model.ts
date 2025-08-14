@@ -6,17 +6,13 @@ export interface IcallbackHandleResponse {
     (message: ThandleMessage): void;
 }
 
-export interface IcallbackReceiveDownload {
+export interface IcallbackReceiveDataDownload {
     (message: DataView, filename: string): void;
 }
 
 export interface Imessage {
     tag: string;
     data: string;
-}
-
-export interface Ifile {
-    filename: string;
 }
 
 export type TsendMessage = string | Record<string, unknown> | ArrayBuffer;

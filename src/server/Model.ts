@@ -23,7 +23,7 @@ export interface IcallbackHandleResponse {
     (clientId: string, message: ThandleMessage): void;
 }
 
-export interface IcallbackReceiveUpload {
+export interface IcallbackReceiveDataUpload {
     (clientId: string, messageList: Buffer[], filename: string): void;
 }
 
