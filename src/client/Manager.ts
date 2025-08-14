@@ -138,7 +138,7 @@ export default class Manager {
             let resultMessage: T;
 
             if (typeof message === "string") {
-                const decoded = window.atob(message);
+                const decoded = helperSrc.base64ToUtf8(message);
 
                 if (!helperSrc.isJson(decoded)) {
                     resultMessage = decoded as T;

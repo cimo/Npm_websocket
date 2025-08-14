@@ -12,3 +12,9 @@ export const isJson = (value: string): boolean => {
         return false;
     }
 };
+
+export const base64ToUtf8 = (base64: string): string => {
+    return decodeURIComponent(
+        Array.prototype.map.call(window.atob(base64), (c: string) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")
+    );
+};
