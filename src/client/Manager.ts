@@ -95,7 +95,7 @@ export default class Manager {
     sendData = (mode: string, message: model.TsendMessage, tag = "", timeout = 0): void => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             if (!(message instanceof ArrayBuffer) && !(typeof message === "string") && !(typeof message === "object" && message !== null)) {
-                throw new Error("@cimo/websocket - Client - Manager.ts - sendData() => Invalid message type!");
+                helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendData()", "Invalid message type!");
             }
 
             if (mode === "text" && !(message instanceof ArrayBuffer)) {
@@ -126,10 +126,10 @@ export default class Manager {
             } else if (mode === "binary" && message instanceof ArrayBuffer) {
                 this.ws.send(message);
             } else {
-                throw new Error("@cimo/websocket - Client - Manager.ts - sendData() => Message type doesn't match mode!");
+                helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendData()", "Message type doesn't match mode!");
             }
         } else {
-            throw new Error("@cimo/websocket - Client - Manager.ts - sendData() => Client not connected!");
+            helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendData()", "Client not connected!");
         }
     };
 

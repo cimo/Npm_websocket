@@ -15,7 +15,7 @@ export default class Manager {
         const key = request.headers["sec-websocket-key"];
 
         if (!key || Array.isArray(key)) {
-            throw new Error("@cimo/webSocket - Server - Manager.ts - responseHeader() => Invalid Sec-WebSocket-Key header!");
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - responseHeader()", "Invalid Sec-WebSocket-Key header!");
         }
 
         const hash = Crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
@@ -85,11 +85,13 @@ export default class Manager {
         return clientId;
     }
 
-    private checkClient = (clientId: string): model.Iclient => {
+    private checkClient = (clientId: string): model.Iclient | null => {
         const client = this.clientMap.get(clientId);
 
         if (!client) {
-            throw new Error(`@cimo/webSocket - Server - Manager.ts - checkClient() => Client ${clientId} doesn't exists!`);
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - checkClient()", `Client ${clientId} doesn't exists!`);
+
+            return null;
         }
 
         return client;
@@ -97,7 +99,7 @@ export default class Manager {
 
     private verifySignature = (value: string, signature: string): boolean => {
         if (signature !== this.generateSignature(value)) {
-            throw new Error("@cimo/websocket - Server - Manager.ts - verifySignature() => Wrong signature!");
+            helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - verifySignature()", "Wrong signature!");
         }
 
         return true;
@@ -300,7 +302,7 @@ export default class Manager {
             let frame0 = 0;
 
             if (!Buffer.isBuffer(message) && !(typeof message === "string") && !(typeof message === "object" && message !== null)) {
-                throw new Error("@cimo/websocket - Server - Manager.ts - sendData() => Invalid message type!");
+                helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - sendData()", "Invalid message type!");
             }
 
             if (mode === "text" && !Buffer.isBuffer(message)) {
@@ -323,7 +325,7 @@ export default class Manager {
                 buffer = Buffer.from(message);
                 frame0 = 0x82;
             } else {
-                throw new Error("@cimo/websocket - Server - Manager.ts - sendData() => Message type doesn't match mode!");
+                helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - sendData()", "Message type doesn't match mode!");
             }
 
             const length = buffer.length;
