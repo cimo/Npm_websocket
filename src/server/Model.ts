@@ -40,7 +40,9 @@ export interface Imessage {
 }
 
 export interface ImessageDirect {
+    time: string;
     content: TsendData;
+    fromClientId: string;
     toClientId: string;
 }
 

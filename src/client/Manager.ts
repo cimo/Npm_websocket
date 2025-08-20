@@ -6,8 +6,9 @@ export default class Manager {
     private ws: WebSocket | undefined;
     private address: string;
     private handleReceiveDataList: model.IhandleReceiveData[];
-    private callbackConnection: (() => void) | null = null;
-    private callbackDisconnection: (() => void) | null = null;
+    private clientIdCurrent: string;
+    private callbackConnection: (() => void) | null;
+    private callbackDisconnection: (() => void) | null;
 
     private handleReceiveData = (tag: string, data: model.TreceiveData): void => {
         for (const handleReceiveData of this.handleReceiveDataList) {
@@ -32,6 +33,12 @@ export default class Manager {
             this.ws.close();
             this.ws = undefined;
         }
+    };
+
+    private dataClientIdCurrent = () => {
+        this.receiveData<model.TreceiveData>("clientId_current", (data) => {
+            this.clientIdCurrent = data as string;
+        });
     };
 
     private create = (): void => {
@@ -97,8 +104,13 @@ export default class Manager {
         this.ws = undefined;
         this.address = addressValue;
         this.handleReceiveDataList = [];
+        this.clientIdCurrent = "";
+        this.callbackConnection = null;
+        this.callbackDisconnection = null;
 
         this.create();
+
+        this.dataClientIdCurrent();
     }
 
     checkStatus = (mode: string, callback: () => void): void => {
@@ -159,9 +171,18 @@ export default class Manager {
         this.sendMessage("binary", file, "", 100);
     };
 
-    sendDataDirect = (data: model.TsendData, clientId: string): void => {
+    sendDataDirect = (dataValue: model.TsendData, clientId: string): void => {
         if (clientId !== "") {
-            this.sendMessage("text", { content: data, toClientId: clientId }, "direct");
+            const date = new Date();
+
+            const data: model.ImessageDirect = {
+                time: date.toLocaleString(),
+                content: dataValue,
+                fromClientId: this.clientIdCurrent,
+                toClientId: clientId
+            };
+
+            this.sendMessage("text", data as unknown as Record<string, unknown>, "direct");
         }
     };
 
@@ -202,8 +223,8 @@ export default class Manager {
         });
     };
 
-    receiveDataDirect = (callback: (data: model.TreceiveData) => void) => {
-        this.receiveData<model.TreceiveData>("direct", (data) => {
+    receiveDataDirect = (callback: (data: model.ImessageDirect) => void) => {
+        this.receiveData<model.ImessageDirect>("direct", (data) => {
             callback(data);
         });
     };

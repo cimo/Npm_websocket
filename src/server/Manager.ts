@@ -68,6 +68,8 @@ export default class Manager {
             lastPong: Date.now()
         });
 
+        this.sendMessage("text", clientId, "clientId_current", clientId);
+
         this.sendDataBroadcast({ label: "connection", result: `Client ${clientId} connected.` }, clientId);
 
         this.ping(clientId);
@@ -249,9 +251,9 @@ export default class Manager {
         this.clientRemove(clientId);
     };
 
-    private sendDataDirect = (): void => {
+    private dataDirect = (): void => {
         this.receiveData<model.ImessageDirect>("direct", (data) => {
-            this.sendMessage("text", data.content, "direct", data.toClientId);
+            this.sendMessage("text", data as unknown as Record<string, unknown>, "direct", data.toClientId);
         });
     };
 
@@ -292,8 +294,6 @@ export default class Manager {
                             messageTagUpload = messageObject.tag;
                         } else if (messageObject.tag === "cws_broadcast") {
                             this.sendDataBroadcast(messageObject.data, clientId);
-                        } else if (messageObject.tag === "cws_direct") {
-                            this.sendDataDirect();
                         }
 
                         this.handleReceiveData(messageObject.tag, messageObject.data, clientId);
@@ -318,6 +318,8 @@ export default class Manager {
         this.handleReceiveDataList = [];
 
         this.create(server);
+
+        this.dataDirect();
     }
 
     clientIdList = (): string[] => {

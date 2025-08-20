@@ -20,5 +20,12 @@ export interface Imessage {
     data: string;
 }
 
+export interface ImessageDirect {
+    time: string;
+    content: TsendData;
+    fromClientId: string;
+    toClientId: string;
+}
+
 export type TreceiveData = string | DataView;
 export type TsendData = string | Record<string, unknown> | ArrayBuffer;
