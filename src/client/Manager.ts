@@ -14,7 +14,7 @@ export default class Manager {
             if (handleReceiveData.tag === tag) {
                 handleReceiveData.callback(data);
 
-                return;
+                break;
             }
         }
     };
@@ -23,8 +23,6 @@ export default class Manager {
         for (let a = this.handleReceiveDataList.length - 1; a >= 0; a--) {
             if (this.handleReceiveDataList[a].tag === tag) {
                 this.handleReceiveDataList.splice(a, 1);
-
-                break;
             }
         }
     };

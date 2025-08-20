@@ -218,7 +218,7 @@ export default class Manager {
             if (handleReceiveData.tag === tag) {
                 handleReceiveData.callback(data, clientId);
 
-                return;
+                break;
             }
         }
     };
