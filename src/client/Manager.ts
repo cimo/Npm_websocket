@@ -173,10 +173,8 @@ export default class Manager {
 
     sendDataDirect = (dataValue: model.TsendData, clientId: string): void => {
         if (clientId !== "") {
-            const date = new Date();
-
             const data: model.ImessageDirect = {
-                time: date.toLocaleString(),
+                time: new Date().toISOString(),
                 content: dataValue,
                 fromClientId: this.clientIdCurrent,
                 toClientId: clientId
