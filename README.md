@@ -50,10 +50,10 @@ import { CwsServer } from "@cimo/websocket/dist/src/Main";
 ...
 
 export const websocket = (cwsServer: CwsServer, cp: Cp) => {
-    cwsServer.receiveData("action_test", (clientId, message) => {
-        console.log(message);
+    cwsServer.receiveData("action_test", (data, clientId) => {
+        console.log(data);
 
-        cwsServer.sendData(clientId, "text", { test: "end" }, "action_test");
+        cwsServer.sendMessage("text", { test: "end" }, "action_test", clientId);
     });
 };
 
@@ -73,14 +73,18 @@ import CwsClient from "@cimo/websocket/dist/src/client/Manager";
 
 const cwsClient = new CwsClient("wss://localhost");
 
-cwsClient.checkConnection(() => {
-    cwsClient.receiveData("action_test", (message) => {
-        console.log(message);
+this.cwsClient.checkStatus("connection", () => {
+    cwsClient.receiveData("action_test", (data) => {
+        console.log(data);
     });
 });
 
+this.cwsClient.checkStatus("disconnection", () => {
+    console.log("disconnected");
+});
+
 elementButton.addEventListener("click", (event) => {
-    cwsClient.sendData("text", { test: "start" }, "action_test");
+    cwsClient.sendMessage("text", { test: "start" }, "action_test");
 });
 
 ...
