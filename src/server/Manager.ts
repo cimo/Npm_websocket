@@ -8,33 +8,90 @@ import * as model from "./Model";
 export default class Manager {
     private secretKey: string;
     private timePing: number;
-    private clientMap: Map<string, model.Iclient>;
-    private callbackHandleResponseMap: Map<string, model.IcallbackHandleResponse>;
+    private clientList: model.Iclient[];
+    private handleReceiveDataList: model.IhandleReceiveData[];
 
-    private responseHeader = (request: model.IhttpServer.IncomingMessage): string[] => {
-        const key = request.headers["sec-websocket-key"];
-
-        if (!key || Array.isArray(key)) {
-            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - responseHeader()", "Invalid Sec-WebSocket-Key header!");
-        }
-
-        const hash = Crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
-
-        return ["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${hash}`, "\r\n"];
-    };
-
-    private generateClientId(): string {
+    private generateClientId = (): string => {
         return Crypto.randomBytes(20).toString("hex");
-    }
+    };
 
     private generateSignature = (value: string): string => {
         return Crypto.createHmac("sha256", this.secretKey).update(value).digest("hex");
     };
 
+    private verifySignature = (clientId: string, signature: string): boolean => {
+        if (signature !== this.generateSignature(clientId)) {
+            return false;
+        }
+
+        return true;
+    };
+
+    private clientRemove = (clientId: string) => {
+        for (let a = this.clientList.length - 1; a >= 0; a--) {
+            if (this.clientList[a].id === clientId) {
+                this.clientList.splice(a, 1);
+            }
+        }
+    };
+
+    private clientCheck = (clientId: string): model.Iclient | null => {
+        for (let a = 0; a < this.clientList.length; a++) {
+            if (this.clientList[a].id === clientId) {
+                return this.clientList[a];
+            }
+        }
+
+        return null;
+    };
+
+    private clientConnection = (socket: Net.Socket): string => {
+        const clientId = this.generateClientId();
+        const signature = this.generateSignature(clientId);
+
+        helperSrc.writeLog(
+            "@cimo/websocket - Server - Manager.ts - clientConnection()",
+            `Connection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
+        );
+
+        this.clientRemove(clientId);
+
+        this.clientList.push({
+            id: clientId,
+            signature,
+            username: "",
+            socket,
+            buffer: Buffer.alloc(0),
+            opCode: -1,
+            fragmentList: [],
+            intervalPing: undefined,
+            lastPong: Date.now()
+        });
+
+        this.sendDataBroadcast({ label: "connection", result: `Client ${clientId} connected.` }, clientId);
+
+        this.ping(clientId);
+
+        return clientId;
+    };
+
+    private clientDisconnection = (socket: Net.Socket, clientId: string): void => {
+        helperSrc.writeLog(
+            "@cimo/websocket - Server - Manager.ts - clientDisconnection()",
+            `Disconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
+        );
+
+        this.sendDataBroadcast({ label: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
+
+        this.cleanup(clientId);
+    };
+
     private ping = (clientId: string): void => {
-        const client = this.checkClient(clientId);
+        const client = this.clientCheck(clientId);
 
         if (!client) {
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - ping()", `Client ${clientId} doesn't exists!`);
+
             return;
         }
 
@@ -59,62 +116,32 @@ export default class Manager {
         }, this.timePing);
     };
 
-    private clientConnection(socket: Net.Socket): string {
-        const clientId = this.generateClientId();
-        const signature = this.generateSignature(clientId);
+    private responseHeader = (request: model.IhttpServer.IncomingMessage): string[] => {
+        const key = request.headers["sec-websocket-key"];
 
-        helperSrc.writeLog(
-            "@cimo/websocket - Server - Manager.ts - clientConnection()",
-            `Connection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
-        );
-
-        this.clientMap.set(clientId, {
-            socket,
-            buffer: Buffer.alloc(0),
-            signature,
-            opCode: -1,
-            fragmentList: [],
-            intervalPing: undefined,
-            lastPong: Date.now()
-        });
-
-        this.sendDataBroadcast({ tag: "connection", result: `Client ${clientId} connected.` }, clientId);
-
-        this.ping(clientId);
-
-        return clientId;
-    }
-
-    private checkClient = (clientId: string): model.Iclient | null => {
-        const client = this.clientMap.get(clientId);
-
-        if (!client) {
-            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - checkClient()", `Client ${clientId} doesn't exists!`);
-
-            return null;
+        if (!key || Array.isArray(key)) {
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - responseHeader()", "Invalid Sec-WebSocket-Key header!");
         }
 
-        return client;
-    };
+        const hash = Crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
 
-    private verifySignature = (value: string, signature: string): boolean => {
-        if (signature !== this.generateSignature(value)) {
-            helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - verifySignature()", "Wrong signature!");
-        }
-
-        return true;
+        return ["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${hash}`, "\r\n"];
     };
 
     private handleFrame = (clientId: string, data: Buffer, callback: model.IcallbackHandleFrame): void => {
-        const client = this.checkClient(clientId);
+        const client = this.clientCheck(clientId);
 
         if (!client) {
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - handleFrame()", `Client ${clientId} doesn't exists!`);
+
             return;
         }
 
         const isSignatureVerified = this.verifySignature(clientId, client.signature);
 
         if (!isSignatureVerified) {
+            helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - handleFrame()", "Wrong signature!");
+
             return;
         }
 
@@ -186,20 +213,30 @@ export default class Manager {
         }
     };
 
-    private handleResponse = (clientId: string, tag: string, message: model.ThandleMessage): void => {
-        for (const [index, callback] of this.callbackHandleResponseMap) {
-            if (tag === index) {
-                callback(clientId, message);
+    private handleReceiveData = (tag: string, data: model.TreceiveData, clientId: string): void => {
+        for (const handleReceiveData of this.handleReceiveDataList) {
+            if (handleReceiveData.tag === tag) {
+                handleReceiveData.callback(data, clientId);
 
                 return;
             }
         }
     };
 
+    private handleReceiveDataRemove = (tag: string): void => {
+        for (let a = this.handleReceiveDataList.length - 1; a >= 0; a--) {
+            if (this.handleReceiveDataList[a].tag === tag) {
+                this.handleReceiveDataList.splice(a, 1);
+            }
+        }
+    };
+
     private cleanup = (clientId: string): void => {
-        const client = this.clientMap.get(clientId);
+        const client = this.clientCheck(clientId);
 
         if (!client) {
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - cleanup()", `Client ${clientId} doesn't exists!`);
+
             return;
         }
 
@@ -209,18 +246,13 @@ export default class Manager {
 
         client.socket.end();
 
-        this.clientMap.delete(clientId);
+        this.clientRemove(clientId);
     };
 
-    private clientDisconnection = (socket: Net.Socket, clientId: string): void => {
-        helperSrc.writeLog(
-            "@cimo/websocket - Server - Manager.ts - clientDisconnection()",
-            `Disconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
-        );
-
-        this.sendDataBroadcast({ tag: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
-
-        this.cleanup(clientId);
+    private sendDataDirect = (): void => {
+        this.receiveData<model.ImessageDirect>("direct", (data) => {
+            this.sendMessage("text", data.content, "direct", data.toClientId);
+        });
     };
 
     private create = (server: model.IhttpServer.Server | model.IhttpsServer.Server): void => {
@@ -260,11 +292,13 @@ export default class Manager {
                             messageTagUpload = messageObject.tag;
                         } else if (messageObject.tag === "cws_broadcast") {
                             this.sendDataBroadcast(messageObject.data, clientId);
+                        } else if (messageObject.tag === "cws_direct") {
+                            this.sendDataDirect();
                         }
 
-                        this.handleResponse(clientId, messageObject.tag, messageObject.data);
+                        this.handleReceiveData(messageObject.tag, messageObject.data, clientId);
                     } else if ((clientOpCode === 0 || clientOpCode === 2) && messageTagUpload) {
-                        this.handleResponse(clientId, messageTagUpload, clientFragmentList);
+                        this.handleReceiveData(messageTagUpload, clientFragmentList, clientId);
 
                         messageTagUpload = "";
                     }
@@ -280,20 +314,28 @@ export default class Manager {
     constructor(server: model.IhttpServer.Server | model.IhttpsServer.Server, secretKeyValue: string, timePingValue = 25000) {
         this.secretKey = secretKeyValue;
         this.timePing = timePingValue;
-        this.clientMap = new Map();
-        this.callbackHandleResponseMap = new Map();
+        this.clientList = [];
+        this.handleReceiveDataList = [];
 
         this.create(server);
     }
 
-    getClientMap = (): Map<string, model.Iclient> => {
-        return this.clientMap;
+    clientIdList = (): string[] => {
+        const resultList: string[] = [];
+
+        for (const client of this.clientList) {
+            resultList.push(client.id);
+        }
+
+        return resultList;
     };
 
-    sendData = (clientId: string, mode: string, message: model.TsendMessage, tag = "", timeout = 0): void => {
-        const client = this.checkClient(clientId);
+    sendMessage = (mode: string, data: model.TsendData, tag = "", clientId: string, timeout = 0): void => {
+        const client = this.clientCheck(clientId);
 
         if (!client) {
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - sendMessage()", `Client ${clientId} doesn't exists!`);
+
             return;
         }
 
@@ -301,31 +343,31 @@ export default class Manager {
             let buffer: Buffer = Buffer.alloc(0);
             let frame0 = 0;
 
-            if (!Buffer.isBuffer(message) && !(typeof message === "string") && !(typeof message === "object" && message !== null)) {
-                helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - sendData()", "Invalid message type!");
+            if (!Buffer.isBuffer(data) && !(typeof data === "string") && !(typeof data === "object" && data !== null)) {
+                helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - sendMessage()", "Invalid data type!");
             }
 
-            if (mode === "text" && !Buffer.isBuffer(message)) {
-                let resultMessage = "";
+            if (mode === "text" && !Buffer.isBuffer(data)) {
+                let resultData = "";
 
-                if (typeof message === "string") {
-                    resultMessage = message;
-                } else if (typeof message === "object") {
-                    resultMessage = JSON.stringify(message);
+                if (typeof data === "string") {
+                    resultData = data;
+                } else if (typeof data === "object") {
+                    resultData = JSON.stringify(data);
                 }
 
                 const messageObject: model.Imessage = {
                     tag: `cws_${tag}`,
-                    data: Buffer.from(resultMessage).toString("base64")
+                    data: Buffer.from(resultData).toString("base64")
                 };
 
                 buffer = Buffer.from(JSON.stringify(messageObject));
                 frame0 = 0x81;
-            } else if (mode === "binary" && Buffer.isBuffer(message)) {
-                buffer = Buffer.from(message);
+            } else if (mode === "binary" && Buffer.isBuffer(data)) {
+                buffer = Buffer.from(data);
                 frame0 = 0x82;
             } else {
-                helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - sendData()", "Message type doesn't match mode!");
+                helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - sendMessage()", "Message type doesn't match mode!");
             }
 
             const length = buffer.length;
@@ -362,56 +404,53 @@ export default class Manager {
         }
     };
 
-    receiveData = <T>(tag: string, callback: (clientId: string, message: T) => void): void => {
-        this.callbackHandleResponseMap.set(`cws_${tag}`, (clientId, message) => {
-            let resultMessage: T;
-
-            if (typeof message === "string") {
-                const decoded = Buffer.from(message, "base64").toString();
-
-                if (!helperSrc.isJson(decoded)) {
-                    resultMessage = decoded as T;
-                } else {
-                    resultMessage = JSON.parse(decoded) as T;
-                }
-            } else {
-                resultMessage = message as T;
+    sendDataBroadcast = (data: model.TsendData, excludeClientId?: string): void => {
+        for (const client of this.clientList) {
+            if (client.id !== excludeClientId) {
+                this.sendMessage("text", data, "broadcast", client.id);
             }
-
-            callback(clientId, resultMessage);
-        });
+        }
     };
 
-    sendDataDownload = (clientId: string, filename: string, file: Buffer): void => {
-        this.sendData(clientId, "text", filename, "download");
-        this.sendData(clientId, "binary", file, "", 100);
+    sendDataDownload = (filename: string, file: Buffer, clientId: string): void => {
+        this.sendMessage("text", filename, "download", clientId);
+        this.sendMessage("binary", file, "", clientId, 100);
+    };
+
+    receiveData = <T>(tag: string, callbackValue: model.IcallbackReceiveData<T>): void => {
+        const cwsTag = `cws_${tag}`;
+
+        this.handleReceiveDataRemove(cwsTag);
+
+        this.handleReceiveDataList.push({
+            tag: cwsTag,
+            callback: (data, clientId) => {
+                let resultData: T;
+
+                if (typeof data === "string") {
+                    const decoded = Buffer.from(data, "base64").toString();
+
+                    resultData = !helperSrc.isJson(decoded) ? (decoded as T) : (JSON.parse(decoded) as T);
+                } else {
+                    resultData = data as T;
+                }
+
+                callbackValue(resultData, clientId);
+            }
+        });
     };
 
     receiveDataUpload = (callback: model.IcallbackReceiveDataUpload): void => {
         let filename = "";
 
-        this.receiveData("upload", (clientId, message: model.ThandleMessage) => {
-            if (typeof message === "string") {
-                filename = message;
+        this.receiveData<model.TreceiveData>("upload", (data, clientId) => {
+            if (typeof data === "string") {
+                filename = data;
             } else {
-                callback(clientId, message, filename);
+                callback(data, filename, clientId);
 
                 filename = "";
             }
         });
-    };
-
-    receiveDataOff = (tag: string): void => {
-        if (this.callbackHandleResponseMap.has(`cws_${tag}`)) {
-            this.callbackHandleResponseMap.delete(`cws_${tag}`);
-        }
-    };
-
-    sendDataBroadcast = (message: model.TsendMessage, excludeClientId?: string): void => {
-        for (const clientId of this.clientMap.keys()) {
-            if (clientId !== excludeClientId) {
-                this.sendData(clientId, "text", message, "broadcast");
-            }
-        }
     };
 }

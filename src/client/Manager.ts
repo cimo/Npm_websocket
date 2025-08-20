@@ -5,24 +5,35 @@ import * as model from "./Model";
 export default class Manager {
     private ws: WebSocket | undefined;
     private address: string;
-    private clientId: string;
-    private callbackHandleResponseMap: Map<string, model.IcallbackHandleResponse>;
-    private countCheckConnection: number;
-    private countCheckConnectionLimit: number;
-    private intervalCheckConnection: NodeJS.Timeout | undefined;
+    private handleReceiveDataList: model.IhandleReceiveData[];
+    private callbackConnection: (() => void) | null = null;
+    private callbackDisconnection: (() => void) | null = null;
 
-    private handleResponse = (tag: string, message: model.ThandleMessage): void => {
-        for (const [index, callback] of this.callbackHandleResponseMap) {
-            if (tag === index) {
-                callback(message);
+    private handleReceiveData = (tag: string, data: model.TreceiveData): void => {
+        for (const handleReceiveData of this.handleReceiveDataList) {
+            if (handleReceiveData.tag === tag) {
+                handleReceiveData.callback(data);
 
                 return;
             }
         }
     };
 
+    private handleReceiveDataRemove = (tag: string): void => {
+        for (let a = this.handleReceiveDataList.length - 1; a >= 0; a--) {
+            if (this.handleReceiveDataList[a].tag === tag) {
+                this.handleReceiveDataList.splice(a, 1);
+
+                break;
+            }
+        }
+    };
+
     private cleanup = (): void => {
-        this.ws = undefined;
+        if (this.ws) {
+            this.ws.close();
+            this.ws = undefined;
+        }
     };
 
     private create = (): void => {
@@ -30,7 +41,11 @@ export default class Manager {
         this.ws.binaryType = "arraybuffer";
 
         this.ws.onopen = () => {
-            helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - create() - onOpen()", "Connection open.");
+            helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - create() - onopen()", "Connection open.");
+
+            if (this.callbackConnection) {
+                this.callbackConnection();
+            }
         };
 
         let messageTagDownload = "";
@@ -58,11 +73,11 @@ export default class Manager {
                         messageTagDownload = messageObject.tag;
                     }
 
-                    this.handleResponse(messageObject.tag, messageObject.data);
+                    this.handleReceiveData(messageObject.tag, messageObject.data);
                 } else if (typeof event.data !== "string" && messageTagDownload) {
                     const view = new DataView(event.data);
 
-                    this.handleResponse(messageTagDownload, view);
+                    this.handleReceiveData(messageTagDownload, view);
 
                     messageTagDownload = "";
                 }
@@ -70,46 +85,50 @@ export default class Manager {
         };
 
         this.ws.onclose = () => {
-            helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - create() - onClose()", "Connection close.");
+            helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - create() - onclose()", "Connection close.");
 
             this.cleanup();
+
+            if (this.callbackDisconnection) {
+                this.callbackDisconnection();
+            }
         };
     };
 
-    constructor(addressValue: string, countCheckConnectionLimitValue = 25) {
+    constructor(addressValue: string) {
         this.ws = undefined;
         this.address = addressValue;
-        this.clientId = "";
-        this.callbackHandleResponseMap = new Map();
-        this.countCheckConnection = 0;
-        this.countCheckConnectionLimit = countCheckConnectionLimitValue;
-        this.intervalCheckConnection = undefined;
+        this.handleReceiveDataList = [];
 
         this.create();
     }
 
-    getClientId = (): string => {
-        return this.clientId;
+    checkStatus = (mode: string, callback: () => void): void => {
+        if (mode === "connection") {
+            this.callbackConnection = callback;
+        } else if (mode === "disconnection") {
+            this.callbackDisconnection = callback;
+        }
     };
 
-    sendData = (mode: string, message: model.TsendMessage, tag = "", timeout = 0): void => {
+    sendMessage = (mode: string, data: model.TsendData, tag = "", timeout = 0): void => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            if (!(message instanceof ArrayBuffer) && !(typeof message === "string") && !(typeof message === "object" && message !== null)) {
-                helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendData()", "Invalid message type!");
+            if (!(data instanceof ArrayBuffer) && !(typeof data === "string") && !(typeof data === "object" && data !== null)) {
+                helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendMessage()", "Invalid data type!");
             }
 
-            if (mode === "text" && !(message instanceof ArrayBuffer)) {
-                let resultMessage = "";
+            if (mode === "text" && !(data instanceof ArrayBuffer)) {
+                let resultData = "";
 
-                if (typeof message === "string") {
-                    resultMessage = message;
-                } else if (typeof message === "object") {
-                    resultMessage = JSON.stringify(message);
+                if (typeof data === "string") {
+                    resultData = data;
+                } else if (typeof data === "object") {
+                    resultData = JSON.stringify(data);
                 }
 
                 const messageObject: model.Imessage = {
                     tag: `cws_${tag}`,
-                    data: window.btoa(String.fromCharCode(...new TextEncoder().encode(resultMessage)))
+                    data: window.btoa(String.fromCharCode(...new TextEncoder().encode(resultData)))
                 };
 
                 if (timeout > 0) {
@@ -123,86 +142,71 @@ export default class Manager {
                 } else {
                     this.ws.send(JSON.stringify(messageObject));
                 }
-            } else if (mode === "binary" && message instanceof ArrayBuffer) {
-                this.ws.send(message);
+            } else if (mode === "binary" && data instanceof ArrayBuffer) {
+                this.ws.send(data);
             } else {
-                helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendData()", "Message type doesn't match mode!");
+                helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendMessage()", "Message type doesn't match mode!");
             }
         } else {
-            helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendData()", "Client not connected!");
+            helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - sendMessage()", "Client not connected!");
         }
     };
 
-    receiveData = <T>(tag: string, callback: (message: T) => void): void => {
-        this.callbackHandleResponseMap.set(`cws_${tag}`, (message) => {
-            let resultMessage: T;
-
-            if (typeof message === "string") {
-                const decoded = helperSrc.base64ToUtf8(message);
-
-                if (!helperSrc.isJson(decoded)) {
-                    resultMessage = decoded as T;
-                } else {
-                    resultMessage = JSON.parse(decoded) as T;
-                }
-            } else {
-                resultMessage = message as T;
-            }
-
-            callback(resultMessage);
-        });
+    sendDataBroadcast = (data: model.TsendData): void => {
+        this.sendMessage("text", data, "broadcast");
     };
 
     sendDataUpload = (filename: string, file: ArrayBuffer): void => {
-        this.sendData("text", filename, "upload");
-        this.sendData("binary", file, "", 100);
+        this.sendMessage("text", filename, "upload");
+        this.sendMessage("binary", file, "", 100);
+    };
+
+    sendDataDirect = (data: model.TsendData, clientId: string): void => {
+        if (clientId !== "") {
+            this.sendMessage("text", { content: data, toClientId: clientId }, "direct");
+        }
+    };
+
+    receiveData = <T>(tag: string, callbackValue: model.IcallbackReceiveData<T>): void => {
+        const cwsTag = `cws_${tag}`;
+
+        this.handleReceiveDataRemove(cwsTag);
+
+        this.handleReceiveDataList.push({
+            tag: cwsTag,
+            callback: (data) => {
+                let resultData: T;
+
+                if (typeof data === "string") {
+                    const decoded = helperSrc.base64ToUtf8(data);
+
+                    resultData = !helperSrc.isJson(decoded) ? (decoded as T) : (JSON.parse(decoded) as T);
+                } else {
+                    resultData = data as T;
+                }
+
+                callbackValue(resultData);
+            }
+        });
     };
 
     receiveDataDownload = (callback: model.IcallbackReceiveDataDownload): void => {
         let filename = "";
 
-        this.receiveData("download", (message: model.ThandleMessage) => {
-            if (typeof message === "string") {
-                filename = message;
+        this.receiveData<model.TreceiveData>("download", (data) => {
+            if (typeof data === "string") {
+                filename = data;
             } else {
-                callback(message, filename);
+                callback(data, filename);
 
                 filename = "";
             }
         });
     };
 
-    receiveDataOff = (tag: string): void => {
-        if (this.callbackHandleResponseMap.has(`cws_${tag}`)) {
-            this.callbackHandleResponseMap.delete(`cws_${tag}`);
-        }
-    };
-
-    sendDataBroadcast = (message: model.TsendMessage): void => {
-        this.sendData("text", message, "broadcast");
-    };
-
-    checkConnection = (callback: () => void): void => {
-        if (this.countCheckConnection > this.countCheckConnectionLimit) {
-            clearInterval(this.intervalCheckConnection);
-
-            return;
-        }
-
-        if (this.ws) {
-            if (this.ws.readyState === WebSocket.OPEN) {
-                clearInterval(this.intervalCheckConnection);
-
-                this.countCheckConnection = 0;
-
-                callback();
-            } else if (this.countCheckConnection === 0) {
-                this.intervalCheckConnection = setInterval(() => {
-                    this.countCheckConnection++;
-
-                    this.checkConnection(callback);
-                }, 5000);
-            }
-        }
+    receiveDataDirect = (callback: (data: model.TreceiveData) => void) => {
+        this.receiveData<model.TreceiveData>("direct", (data) => {
+            callback(data);
+        });
     };
 }

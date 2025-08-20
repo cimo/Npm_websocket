@@ -2,12 +2,17 @@ export interface Iclient {
     socket: WebSocket;
 }
 
-export interface IcallbackHandleResponse {
-    (message: ThandleMessage): void;
+export interface IhandleReceiveData {
+    tag: string;
+    callback: IcallbackReceiveData<TreceiveData>;
+}
+
+export interface IcallbackReceiveData<T> {
+    (data: T): void;
 }
 
 export interface IcallbackReceiveDataDownload {
-    (message: DataView, filename: string): void;
+    (data: DataView, filename: string): void;
 }
 
 export interface Imessage {
@@ -15,5 +20,5 @@ export interface Imessage {
     data: string;
 }
 
-export type TsendMessage = string | Record<string, unknown> | ArrayBuffer;
-export type ThandleMessage = string | DataView;
+export type TreceiveData = string | DataView;
+export type TsendData = string | Record<string, unknown> | ArrayBuffer;

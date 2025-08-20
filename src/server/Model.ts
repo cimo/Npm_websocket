@@ -6,25 +6,32 @@ export { Http as IhttpServer };
 export { Https as IhttpsServer };
 
 export interface Iclient {
+    id: string;
+    signature: string;
+    username: string;
     socket: Net.Socket;
     buffer: Buffer;
-    signature: string;
     opCode: number;
     fragmentList: Buffer[];
     intervalPing: NodeJS.Timeout | undefined;
     lastPong: number;
 }
 
+export interface IhandleReceiveData {
+    tag: string;
+    callback: IcallbackReceiveData<TreceiveData>;
+}
+
 export interface IcallbackHandleFrame {
     (clientOpCode: number, clientFragmentList: Buffer[]): void;
 }
 
-export interface IcallbackHandleResponse {
-    (clientId: string, message: ThandleMessage): void;
+export interface IcallbackReceiveData<T> {
+    (data: T, clientId: string): void;
 }
 
 export interface IcallbackReceiveDataUpload {
-    (clientId: string, messageList: Buffer[], filename: string): void;
+    (dataList: Buffer[], filename: string, clientId: string): void;
 }
 
 export interface Imessage {
@@ -32,5 +39,10 @@ export interface Imessage {
     data: string;
 }
 
-export type TsendMessage = string | Record<string, unknown> | Buffer;
-export type ThandleMessage = string | Buffer[];
+export interface ImessageDirect {
+    content: TsendData;
+    toClientId: string;
+}
+
+export type TreceiveData = string | Buffer[];
+export type TsendData = string | Record<string, unknown> | Buffer;
