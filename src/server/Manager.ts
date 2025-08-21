@@ -414,8 +414,8 @@ export default class Manager {
         }
     };
 
-    sendDataDownload = (filename: string, file: Buffer, clientId: string): void => {
-        this.sendMessage("text", filename, "download", clientId);
+    sendDataDownload = (fileName: string, file: Buffer, clientId: string): void => {
+        this.sendMessage("text", fileName, "download", clientId);
         this.sendMessage("binary", file, "", clientId, 100);
     };
 
@@ -443,15 +443,15 @@ export default class Manager {
     };
 
     receiveDataUpload = (callback: model.IcallbackReceiveDataUpload): void => {
-        let filename = "";
+        let fileName = "";
 
         this.receiveData<model.TreceiveData>("upload", (data, clientId) => {
             if (typeof data === "string") {
-                filename = data;
+                fileName = data;
             } else {
-                callback(data, filename, clientId);
+                callback(data, fileName, clientId);
 
-                filename = "";
+                fileName = "";
             }
         });
     };

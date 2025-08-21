@@ -12,7 +12,7 @@ export interface IcallbackReceiveData<T> {
 }
 
 export interface IcallbackReceiveDataDownload {
-    (data: DataView, filename: string): void;
+    (data: DataView, fileName: string): void;
 }
 
 export interface Imessage {
