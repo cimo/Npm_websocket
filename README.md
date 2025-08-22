@@ -73,6 +73,8 @@ import CwsClient from "@cimo/websocket/dist/src/client/Manager";
 
 const cwsClient = new CwsClient("wss://localhost");
 
+this.cwsClient.open();
+
 this.cwsClient.checkStatus("connection", () => {
     cwsClient.receiveData("action_test", (data) => {
         console.log(data);
