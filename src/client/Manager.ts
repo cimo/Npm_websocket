@@ -28,13 +28,6 @@ export default class Manager {
         }
     };
 
-    private cleanup = (): void => {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = undefined;
-        }
-    };
-
     private dataClientIdCurrent = () => {
         this.receiveData<model.TreceiveData>("clientId_current", (data) => {
             this.clientIdCurrent = data as string;
@@ -44,6 +37,8 @@ export default class Manager {
     private create = (): void => {
         this.ws = new WebSocket(this.address);
         this.ws.binaryType = "arraybuffer";
+
+        this.dataClientIdCurrent();
 
         this.ws.onopen = () => {
             helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - create() - onopen()", "Connection open.");
@@ -92,7 +87,7 @@ export default class Manager {
         this.ws.onclose = () => {
             helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - create() - onclose()", "Connection close.");
 
-            this.cleanup();
+            this.ws = undefined;
 
             if (this.callbackDisconnection) {
                 this.callbackDisconnection();
@@ -107,10 +102,6 @@ export default class Manager {
         this.clientIdCurrent = "";
         this.callbackConnection = null;
         this.callbackDisconnection = null;
-
-        this.create();
-
-        this.dataClientIdCurrent();
     }
 
     checkStatus = (mode: string, callback: () => void): void => {
@@ -225,5 +216,19 @@ export default class Manager {
         this.receiveData<model.ImessageDirect>("direct", (data) => {
             callback(data);
         });
+    };
+
+    open = (): void => {
+        if (!this.ws) {
+            this.create();
+        }
+    };
+
+    close = (): void => {
+        if (this.ws) {
+            this.sendMessage("text", "", "disconnect");
+
+            this.ws.close();
+        }
     };
 }

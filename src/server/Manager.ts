@@ -7,7 +7,7 @@ import * as model from "./Model";
 
 export default class Manager {
     private secretKey: string;
-    private timePing: number;
+    private intervalTimePing: number;
     private clientList: model.Iclient[];
     private handleReceiveDataList: model.IhandleReceiveData[];
 
@@ -25,24 +25,6 @@ export default class Manager {
         }
 
         return true;
-    };
-
-    private clientRemove = (clientId: string) => {
-        for (let a = this.clientList.length - 1; a >= 0; a--) {
-            if (this.clientList[a].id === clientId) {
-                this.clientList.splice(a, 1);
-            }
-        }
-    };
-
-    private clientCheck = (clientId: string): model.Iclient | null => {
-        for (let a = 0; a < this.clientList.length; a++) {
-            if (this.clientList[a].id === clientId) {
-                return this.clientList[a];
-            }
-        }
-
-        return null;
     };
 
     private clientConnection = (socket: Net.Socket): string => {
@@ -77,15 +59,36 @@ export default class Manager {
         return clientId;
     };
 
-    private clientDisconnection = (socket: Net.Socket, clientId: string): void => {
-        helperSrc.writeLog(
-            "@cimo/websocket - Server - Manager.ts - clientDisconnection()",
-            `Disconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
-        );
+    private clientDisconnection = (clientId: string) => {
+        const client = this.clientCheck(clientId);
 
-        this.sendDataBroadcast({ label: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
+        if (!client) {
+            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - clientDisconnection()", `Client ${clientId} doesn't exists!`);
 
-        this.cleanup(clientId);
+            return;
+        }
+
+        clearInterval(client.intervalPing);
+
+        client.socket.end();
+    };
+
+    private clientCheck = (clientId: string): model.Iclient | null => {
+        for (let a = 0; a < this.clientList.length; a++) {
+            if (this.clientList[a].id === clientId) {
+                return this.clientList[a];
+            }
+        }
+
+        return null;
+    };
+
+    private clientRemove = (clientId: string) => {
+        for (let a = this.clientList.length - 1; a >= 0; a--) {
+            if (this.clientList[a].id === clientId) {
+                this.clientList.splice(a, 1);
+            }
+        }
     };
 
     private ping = (clientId: string): void => {
@@ -101,10 +104,8 @@ export default class Manager {
             if (client.socket && client.socket.writable) {
                 const now = Date.now();
 
-                if (now - client.lastPong > this.timePing * 2) {
-                    helperSrc.writeLog("@cimo/websocket - Server - Manager.ts - ping() - setInterval()", `Client ${clientId} pong timeout.`);
-
-                    this.clientDisconnection(client.socket, clientId);
+                if (now - client.lastPong > this.intervalTimePing * 2) {
+                    this.clientDisconnection(clientId);
 
                     return;
                 }
@@ -115,7 +116,7 @@ export default class Manager {
 
                 client.socket.write(frame);
             }
-        }, this.timePing);
+        }, this.intervalTimePing);
     };
 
     private responseHeader = (request: model.IhttpServer.IncomingMessage): string[] => {
@@ -233,24 +234,6 @@ export default class Manager {
         }
     };
 
-    private cleanup = (clientId: string): void => {
-        const client = this.clientCheck(clientId);
-
-        if (!client) {
-            helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - cleanup()", `Client ${clientId} doesn't exists!`);
-
-            return;
-        }
-
-        if (client.intervalPing) {
-            clearInterval(client.intervalPing);
-        }
-
-        client.socket.end();
-
-        this.clientRemove(clientId);
-    };
-
     private dataDirect = (): void => {
         this.receiveData<model.ImessageDirect>("direct", (data) => {
             this.sendMessage("text", data as unknown as Record<string, unknown>, "direct", data.toClientId);
@@ -294,6 +277,8 @@ export default class Manager {
                             messageTagUpload = messageObject.tag;
                         } else if (messageObject.tag === "cws_broadcast") {
                             this.sendDataBroadcast(messageObject.data, clientId);
+                        } else if (messageObject.tag === "cws_disconnect") {
+                            this.clientDisconnection(clientId);
                         }
 
                         this.handleReceiveData(messageObject.tag, messageObject.data, clientId);
@@ -305,15 +290,26 @@ export default class Manager {
                 });
             });
 
+            socket.on("error", (error) => {
+                helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - create() - onerror()", `Client ${clientId} error: ${error.message}`);
+            });
+
             socket.on("end", () => {
-                this.clientDisconnection(socket, clientId);
+                helperSrc.writeLog(
+                    "@cimo/websocket - Server - Manager.ts - create() - onend()",
+                    `Disconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
+                );
+
+                this.sendDataBroadcast({ label: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
+
+                this.clientRemove(clientId);
             });
         });
     };
 
-    constructor(server: model.IhttpServer.Server | model.IhttpsServer.Server, secretKeyValue: string, timePingValue = 25000) {
+    constructor(server: model.IhttpServer.Server | model.IhttpsServer.Server, secretKeyValue: string, intervalTimePingValue = 5000) {
         this.secretKey = secretKeyValue;
-        this.timePing = timePingValue;
+        this.intervalTimePing = intervalTimePingValue;
         this.clientList = [];
         this.handleReceiveDataList = [];
 
