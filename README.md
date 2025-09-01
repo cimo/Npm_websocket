@@ -35,12 +35,12 @@ import * as ControllerTest from "../controller/Test";
 
 const cwsServer = new CwsServer(server, "secret-key");
 
-ControllerTester.websocket(cwsServer);
+ControllerTest.websocket(cwsServer);
 
 ...
 ```
 
--   ControllerTester.ts
+-   ControllerTest.ts
 
 ```
 ...
