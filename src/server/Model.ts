@@ -31,7 +31,7 @@ export interface IcallbackReceiveData<T> {
 }
 
 export interface IcallbackReceiveDataUpload {
-    (dataList: Buffer[], fileName: string, clientId: string): void;
+    (dataList: Buffer[], mimeType: string, fileName: string, clientId: string): void;
 }
 
 export interface Imessage {
@@ -47,4 +47,5 @@ export interface ImessageDirect {
 }
 
 export type TreceiveData = string | Buffer[];
+export type TreceiveDataDownalod = { mimeType: string; fileName: string } | Buffer[];
 export type TsendData = string | Record<string, unknown> | Buffer;

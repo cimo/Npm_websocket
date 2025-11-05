@@ -12,7 +12,7 @@ export interface IcallbackReceiveData<T> {
 }
 
 export interface IcallbackReceiveDataDownload {
-    (data: DataView, fileName: string): void;
+    (data: DataView, mimeType: string, fileName: string): void;
 }
 
 export interface Imessage {
@@ -28,4 +28,5 @@ export interface ImessageDirect {
 }
 
 export type TreceiveData = string | DataView;
+export type TreceiveDataDownalod = { mimeType: string; fileName: string } | DataView;
 export type TsendData = string | Record<string, unknown> | ArrayBuffer;
