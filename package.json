@@ -12,9 +12,9 @@
         "remove_dist": "node -e \"const fs = require('fs'); try{ fs.rmdirSync('./dist/', { recursive: true }) } catch{}; process.exit(0);\"",
         "remove_build": "node -e \"const fs = require('fs'); try{ fs.rmdirSync('./build/', { recursive: true }) } catch{}; process.exit(0);\"",
         "check": "eslint --no-cache --config eslint.config.js",
-        "build_tsc": "npm run remove_dist && tsc --build tsconfig.tsc.json && npm run check",
+        "build_tsc": "npm run remove_dist && tsc --build tsconfig.tsc.json",
         "build_library": "npm run remove_build && tsc --build tsconfig.build_main.json && tsc --build tsconfig.build_server.json && tsc --build tsconfig.build_client.json && npm pack && mkdir -p ./build/ && mv *.tgz ./build/",
-        "build": "npm audit && npm run build_tsc && npm run build_library"
+        "build": "npm audit && npm run build_tsc && npm run check && npm run build_library"
     },
     "dependencies": {},
     "devDependencies": {
@@ -23,8 +23,8 @@
         "@typescript-eslint/parser": "8.24.1",
         "@typescript-eslint/eslint-plugin": "8.24.1",
         "eslint-plugin-prettier": "5.2.1",
-        "globals": "15.13.0",
         "prettier": "3.4.2",
+        "globals": "15.13.0",
         "@types/node": "22.10.2"
     },
     "resolutions": {},
