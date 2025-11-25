@@ -311,10 +311,10 @@ export default class Manager {
                 helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - create() - onerror()", `Client ${clientId} error: ${error.message}`);
             });
 
-            socket.on("close", (hadError: boolean) => {
+            socket.on("close", (isError: boolean) => {
                 helperSrc.writeLog(
                     "@cimo/websocket - Server - Manager.ts - create() - onclose()",
-                    `Socket closed (hadError=${hadError}) - Client ${clientId}.`
+                    `Disconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId} - (Had error: ${isError}).`
                 );
 
                 this.sendDataBroadcast({ label: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
