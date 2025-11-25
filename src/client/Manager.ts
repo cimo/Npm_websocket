@@ -28,17 +28,9 @@ export default class Manager {
         }
     };
 
-    private dataClientIdCurrent = () => {
-        this.receiveData<model.TreceiveData>("clientId_current", (data) => {
-            this.clientIdCurrent = data as string;
-        });
-    };
-
     private create = (): void => {
         this.ws = new WebSocket(this.address);
         this.ws.binaryType = "arraybuffer";
-
-        this.dataClientIdCurrent();
 
         this.ws.onopen = () => {
             helperSrc.writeLog("@cimo/websocket - Client - Manager.ts - create() - onopen()", "Connection open.");
@@ -67,6 +59,10 @@ export default class Manager {
 
                     if (!messageObject || typeof messageObject.tag !== "string") {
                         return;
+                    }
+
+                    if (messageObject.tag === "cws_clientId_current") {
+                        this.clientIdCurrent = helperSrc.base64ToUtf8(messageObject.data);
                     }
 
                     if (messageObject.tag === "cws_download") {

@@ -70,7 +70,18 @@ export default class Manager {
 
         clearInterval(client.intervalPing);
 
-        client.socket.end();
+        const buffer = Buffer.from("Server disconnect", "utf8");
+        const payload = Buffer.alloc(2 + buffer.length);
+        payload.writeUInt16BE(1000, 0);
+        buffer.copy(payload, 2);
+        const header = Buffer.from([0x88, payload.length]);
+        const closeFrame = Buffer.concat([header, payload]);
+
+        if (client.socket && client.socket.writable) {
+            client.socket.write(closeFrame);
+        }
+
+        client.socket.destroy();
     };
 
     private clientCheck = (clientId: string): model.Iclient | null => {
@@ -286,6 +297,12 @@ export default class Manager {
                         this.handleReceiveData(messageTagUpload, clientFragmentList, clientId);
 
                         messageTagUpload = "";
+                    } else if (clientOpCode === 8) {
+                        socket.write(Buffer.from([0x88, 0x00]));
+
+                        this.clientDisconnection(clientId);
+
+                        return;
                     }
                 });
             });
@@ -294,10 +311,10 @@ export default class Manager {
                 helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - create() - onerror()", `Client ${clientId} error: ${error.message}`);
             });
 
-            socket.on("end", () => {
+            socket.on("close", (hadError: boolean) => {
                 helperSrc.writeLog(
-                    "@cimo/websocket - Server - Manager.ts - create() - onend()",
-                    `Disconnection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
+                    "@cimo/websocket - Server - Manager.ts - create() - onclose()",
+                    `Socket closed (hadError=${hadError}) - Client ${clientId}.`
                 );
 
                 this.sendDataBroadcast({ label: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
