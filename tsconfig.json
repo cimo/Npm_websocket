@@ -18,6 +18,7 @@
         "skipLibCheck": true,
         "removeComments": true,
         "sourceMap": true,
+        "noPropertyAccessFromIndexSignature": true,
         "declaration": true,
         "stripInternal": true
     },
