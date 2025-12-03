@@ -59,7 +59,7 @@ export default class Manager {
         return clientId;
     };
 
-    private clientDisconnection = (clientId: string) => {
+    private clientDisconnection = (clientId: string): void => {
         const client = this.clientCheck(clientId);
 
         if (!client) {
@@ -94,7 +94,7 @@ export default class Manager {
         return null;
     };
 
-    private clientRemove = (clientId: string) => {
+    private clientRemove = (clientId: string): void => {
         for (let a = this.clientList.length - 1; a >= 0; a--) {
             if (this.clientList[a].id === clientId) {
                 this.clientList.splice(a, 1);
