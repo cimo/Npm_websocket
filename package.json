@@ -1,6 +1,6 @@
 {
     "name": "@cimo/websocket",
-    "version": "1.5.57",
+    "version": "1.5.58",
     "description": "Websocket (server/client). Light, fast and secure.",
     "author": "cimo",
     "license": "MIT",
@@ -11,7 +11,7 @@
     "scripts": {
         "remove_dist": "node -e \"const fs = require('fs'); try{ fs.rmdirSync('./dist/', { recursive: true }) } catch{}; process.exit(0);\"",
         "remove_build": "node -e \"const fs = require('fs'); try{ fs.rmdirSync('./build/', { recursive: true }) } catch{}; process.exit(0);\"",
-        "check": "eslint --no-cache --config eslint.config.js",
+        "check": "eslint --no-cache --config eslint.config.cjs",
         "build_tsc": "npm run remove_dist && tsc --build tsconfig.tsc.json",
         "build_library": "npm run remove_build && tsc --build tsconfig.build_main.json && tsc --build tsconfig.build_server.json && tsc --build tsconfig.build_client.json && npm pack && mkdir -p ./build/ && mv *.tgz ./build/",
         "build": "npm audit && npm run build_tsc && npm run check && npm run build_library"
