@@ -67,7 +67,7 @@ export const websocket = (cwsServer: CwsServer, cp: Cp) => {
 ```
 ...
 
-import CwsClient from "@cimo/websocket/dist/src/client/Manager";
+import { CwsClient } from "@cimo/websocket/dist/src/Main";
 
 ...
 

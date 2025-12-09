@@ -1,6 +1,6 @@
 // Source
-import * as helperSrc from "../HelperSrc";
-import * as model from "./Model";
+import * as helperSrc from "../HelperSrc.js";
+import * as model from "./Model.js";
 
 export default class Manager {
     private ws: WebSocket | undefined;

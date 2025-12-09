@@ -2,8 +2,8 @@ import * as Net from "net";
 import * as Crypto from "crypto";
 
 // Source
-import * as helperSrc from "../HelperSrc";
-import * as model from "./Model";
+import * as helperSrc from "../HelperSrc.js";
+import * as model from "./Model.js";
 
 export default class Manager {
     private secretKey: string;
