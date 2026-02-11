@@ -253,7 +253,9 @@ export default class Manager {
 
     private create = (server: model.IhttpServer.Server | model.IhttpsServer.Server): void => {
         server.on("upgrade", (request: model.IhttpServer.IncomingMessage, socket: Net.Socket) => {
-            if (request.headers["upgrade"] && request.headers["upgrade"].toLowerCase() !== "websocket") {
+            const upgrade = request.headers["upgrade"];
+
+            if (upgrade && upgrade.toLowerCase() !== "websocket") {
                 socket.end("HTTP/1.1 400 Bad Request");
 
                 return;
