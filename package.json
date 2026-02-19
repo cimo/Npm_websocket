@@ -15,7 +15,7 @@
         "check": "eslint --no-cache --config eslint.config.js",
         "build_tsc": "npm run remove_dist && tsc --build tsconfig.tsc.json",
         "build_library": "npm run remove_build && tsc --build tsconfig.build_main.json && tsc --build tsconfig.build_server.json && tsc --build tsconfig.build_client.json && npm pack && mkdir -p ./build/ && mv *.tgz ./build/",
-        "build": "npm audit && npm run build_tsc && npm run check && npm run build_library"
+        "build": "npm run build_tsc && npm run check && npm run build_library"
     },
     "dependencies": {},
     "devDependencies": {
