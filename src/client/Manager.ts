@@ -20,7 +20,7 @@ export default class Manager {
         }
     };
 
-    private handleReceiveDataRemove = (tag: string): void => {
+    private handleReceiveDataDelete = (tag: string): void => {
         for (let a = this.handleReceiveDataList.length - 1; a >= 0; a--) {
             if (this.handleReceiveDataList[a].tag === tag) {
                 this.handleReceiveDataList.splice(a, 1);
@@ -174,7 +174,7 @@ export default class Manager {
     receiveData = <T>(tag: string, callbackValue: model.IcallbackReceiveData<T>): void => {
         const cwsTag = `cws_${tag}`;
 
-        this.handleReceiveDataRemove(cwsTag);
+        this.handleReceiveDataDelete(cwsTag);
 
         this.handleReceiveDataList.push({
             tag: cwsTag,

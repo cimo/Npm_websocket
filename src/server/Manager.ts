@@ -36,7 +36,7 @@ export default class Manager {
             `Connection request from Ip: ${socket.remoteAddress || ""} - Client ${clientId}.`
         );
 
-        this.clientRemove(clientId);
+        this.clientDelete(clientId);
 
         this.clientList.push({
             id: clientId,
@@ -94,7 +94,7 @@ export default class Manager {
         return null;
     };
 
-    private clientRemove = (clientId: string): void => {
+    private clientDelete = (clientId: string): void => {
         for (let a = this.clientList.length - 1; a >= 0; a--) {
             if (this.clientList[a].id === clientId) {
                 this.clientList.splice(a, 1);
@@ -237,7 +237,7 @@ export default class Manager {
         }
     };
 
-    private handleReceiveDataRemove = (tag: string): void => {
+    private handleReceiveDataDelete = (tag: string): void => {
         for (let a = this.handleReceiveDataList.length - 1; a >= 0; a--) {
             if (this.handleReceiveDataList[a].tag === tag) {
                 this.handleReceiveDataList.splice(a, 1);
@@ -321,7 +321,7 @@ export default class Manager {
 
                 this.sendDataBroadcast({ label: "disconnection", result: `Client ${clientId} disconnected.` }, clientId);
 
-                this.clientRemove(clientId);
+                this.clientDelete(clientId);
             });
         });
     };
@@ -437,7 +437,7 @@ export default class Manager {
     receiveData = <T>(tag: string, callbackValue: model.IcallbackReceiveData<T>): void => {
         const cwsTag = `cws_${tag}`;
 
-        this.handleReceiveDataRemove(cwsTag);
+        this.handleReceiveDataDelete(cwsTag);
 
         this.handleReceiveDataList.push({
             tag: cwsTag,
