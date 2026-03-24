@@ -1,6 +1,6 @@
 {
     "name": "@cimo/websocket",
-    "version": "1.5.63",
+    "version": "1.5.64",
     "description": "Websocket (server/client). Light, fast and secure.",
     "author": "cimo",
     "license": "MIT",

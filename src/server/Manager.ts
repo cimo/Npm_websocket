@@ -309,7 +309,7 @@ export default class Manager {
                 });
             });
 
-            socket.on("error", (error) => {
+            socket.on("error", (error: Error) => {
                 helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - create() - onerror()", `Client ${clientId} error: ${error.message}`);
             });
 
