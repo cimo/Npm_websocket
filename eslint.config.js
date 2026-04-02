@@ -6,22 +6,7 @@ import typescriptPlugin from "@typescript-eslint/eslint-plugin";
 import customRule from "./dist/eslint.customRule.js";
 
 const configIgnore = {
-    ignores: [
-        ".cache",
-        ".config",
-        ".ipython",
-        ".jupyter",
-        ".local",
-        ".npm",
-        ".nv",
-        ".paddlex",
-        ".pki",
-        "certificate",
-        "dist",
-        "node_modules",
-        "public",
-        "src-tauri"
-    ]
+    ignores: ["build", "dist", "node_modules"]
 };
 
 const configBase = {
@@ -58,7 +43,7 @@ const configBase = {
 };
 
 const configTypescript = {
-    files: ["eslint.customRule.ts", "global.d.ts", "src/**/*.{ts,tsx}", "file/input/**/*.{ts,tsx}"],
+    files: ["eslint.customRule.ts", "global.d.ts", "src/**/*.{ts,tsx}"],
     languageOptions: {
         ...configBase.languageOptions,
         parser: typescriptParser,
@@ -87,7 +72,7 @@ const configTypescript = {
 };
 
 const configJavascript = {
-    files: ["eslint.config.js", "webpack.build.js", "src/**/*.{js,jsx}", "file/input/**/*.{js,jsx}"],
+    files: ["eslint.config.js", "src/**/*.{js,jsx}"],
     languageOptions: {
         ...configBase.languageOptions
     },
