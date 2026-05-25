@@ -131,13 +131,13 @@ export default class Manager {
     };
 
     private responseHeader = (request: model.IhttpServer.IncomingMessage): string[] => {
-        const key = request.headers["sec-websocket-key"];
+        const secretKey = request.headers["sec-websocket-key"] as string;
 
-        if (!key || Array.isArray(key)) {
+        if (secretKey.trim() === "") {
             helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - responseHeader()", "Invalid Sec-WebSocket-Key header!");
         }
 
-        const hash = Crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
+        const hash = Crypto.createHash("sha1").update(`${secretKey}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
 
         return ["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${hash}`, "\r\n"];
     };
@@ -253,9 +253,9 @@ export default class Manager {
 
     private create = (server: model.IhttpServer.Server | model.IhttpsServer.Server): void => {
         server.on("upgrade", (request: model.IhttpServer.IncomingMessage, socket: Net.Socket) => {
-            const upgrade = request.headers["upgrade"];
+            const upgrade = request.headers["upgrade"] as string;
 
-            if (upgrade && upgrade.toLowerCase() !== "websocket") {
+            if (upgrade.toLowerCase() !== "websocket") {
                 socket.end("HTTP/1.1 400 Bad Request");
 
                 return;

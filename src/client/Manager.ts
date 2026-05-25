@@ -47,7 +47,7 @@ export default class Manager {
                 if (typeof event.data === "string") {
                     const eventData = event.data as string;
 
-                    if (!eventData.trim()) {
+                    if (eventData.trim() === "") {
                         return;
                     }
 
