@@ -19,6 +19,7 @@
         "sourceMap": true,
         "noPropertyAccessFromIndexSignature": true,
         "isolatedModules": true,
+        "types": ["node"],
         "declaration": true,
         "stripInternal": true
     },
