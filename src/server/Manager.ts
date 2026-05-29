@@ -84,14 +84,14 @@ export default class Manager {
         client.socket.destroy();
     };
 
-    private clientCheck = (clientId: string): model.Iclient | null => {
+    private clientCheck = (clientId: string): model.Iclient | undefined => {
         for (let a = 0; a < this.clientList.length; a++) {
             if (this.clientList[a].id === clientId) {
                 return this.clientList[a];
             }
         }
 
-        return null;
+        return undefined;
     };
 
     private clientDelete = (clientId: string): void => {
@@ -131,10 +131,12 @@ export default class Manager {
     };
 
     private responseHeader = (request: model.IhttpServer.IncomingMessage): string[] => {
-        const secretKey = request.headers["sec-websocket-key"] as string;
+        const secretKey = request.headers["sec-websocket-key"];
 
-        if (secretKey.trim() === "") {
+        if (!secretKey || secretKey.trim() === "") {
             helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - responseHeader()", "Invalid Sec-WebSocket-Key header!");
+
+            return [];
         }
 
         const hash = Crypto.createHash("sha1").update(`${secretKey}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
@@ -228,7 +230,9 @@ export default class Manager {
     };
 
     private handleReceiveData = (tag: string, data: model.TreceiveData, clientId: string): void => {
-        for (const handleReceiveData of this.handleReceiveDataList) {
+        for (let a = 0; a < this.handleReceiveDataList.length; a++) {
+            const handleReceiveData = this.handleReceiveDataList[a];
+
             if (handleReceiveData.tag === tag) {
                 handleReceiveData.callback(data, clientId);
 
@@ -253,9 +257,9 @@ export default class Manager {
 
     private create = (server: model.IhttpServer.Server | model.IhttpsServer.Server): void => {
         server.on("upgrade", (request: model.IhttpServer.IncomingMessage, socket: Net.Socket) => {
-            const upgrade = request.headers["upgrade"] as string;
+            const upgrade = request.headers["upgrade"];
 
-            if (upgrade.toLowerCase() !== "websocket") {
+            if (!upgrade || upgrade.toLowerCase() !== "websocket") {
                 socket.end("HTTP/1.1 400 Bad Request");
 
                 return;
@@ -340,7 +344,9 @@ export default class Manager {
     clientIdList = (): string[] => {
         const resultList: string[] = [];
 
-        for (const client of this.clientList) {
+        for (let a = 0; a < this.clientList.length; a++) {
+            const client = this.clientList[a];
+
             resultList.push(client.id);
         }
 
@@ -422,7 +428,9 @@ export default class Manager {
     };
 
     sendDataBroadcast = (data: model.TsendData, excludeClientId?: string): void => {
-        for (const client of this.clientList) {
+        for (let a = 0; a < this.clientList.length; a++) {
+            const client = this.clientList[a];
+
             if (client.id !== excludeClientId) {
                 this.sendMessage("text", data, "broadcast", client.id);
             }

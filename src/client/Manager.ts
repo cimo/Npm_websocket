@@ -7,11 +7,13 @@ export default class Manager {
     private address: string;
     private handleReceiveDataList: model.IhandleReceiveData[];
     private clientIdCurrent: string;
-    private callbackConnection: (() => void) | null;
-    private callbackDisconnection: (() => void) | null;
+    private callbackConnection: (() => void) | undefined;
+    private callbackDisconnection: (() => void) | undefined;
 
     private handleReceiveData = (tag: string, data: model.TreceiveData): void => {
-        for (const handleReceiveData of this.handleReceiveDataList) {
+        for (let a = 0; a < this.handleReceiveDataList.length; a++) {
+            const handleReceiveData = this.handleReceiveDataList[a];
+
             if (handleReceiveData.tag === tag) {
                 handleReceiveData.callback(data);
 
@@ -42,10 +44,10 @@ export default class Manager {
 
         let messageTagDownload = "";
 
-        this.ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+        this.ws.onmessage = (event: MessageEvent<ArrayBuffer | string>) => {
             if (this.ws) {
                 if (typeof event.data === "string") {
-                    const eventData = event.data as string;
+                    const eventData = event.data;
 
                     if (eventData.trim() === "") {
                         return;
@@ -96,8 +98,8 @@ export default class Manager {
         this.address = addressValue;
         this.handleReceiveDataList = [];
         this.clientIdCurrent = "";
-        this.callbackConnection = null;
-        this.callbackDisconnection = null;
+        this.callbackConnection = undefined;
+        this.callbackDisconnection = undefined;
     }
 
     checkStatus = (mode: string, callback: () => void): void => {
@@ -123,9 +125,16 @@ export default class Manager {
                     resultData = JSON.stringify(data);
                 }
 
+                const encodedBytes = new TextEncoder().encode(resultData);
+                let binaryString = "";
+
+                for (let a = 0; a < encodedBytes.length; a++) {
+                    binaryString += String.fromCharCode(encodedBytes[a]);
+                }
+
                 const messageObject: model.Imessage = {
                     tag: `cws_${tag}`,
-                    data: window.btoa(String.fromCharCode(...new TextEncoder().encode(resultData)))
+                    data: window.btoa(binaryString)
                 };
 
                 if (timeout > 0) {
