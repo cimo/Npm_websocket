@@ -57,25 +57,25 @@ export default class Manager {
                         return;
                     }
 
-                    const messageObject: model.Imessage = JSON.parse(eventData);
+                    const eventDataObject = JSON.parse(eventData) as model.Imessage;
 
-                    if (!messageObject || typeof messageObject.tag !== "string") {
+                    if (!eventDataObject || typeof eventDataObject.tag !== "string") {
                         return;
                     }
 
-                    if (messageObject.tag === "cws_clientId_current") {
-                        this.clientIdCurrent = helperSrc.base64ToUtf8(messageObject.data);
+                    if (eventDataObject.tag === "cws_clientId_current") {
+                        this.clientIdCurrent = helperSrc.base64ToUtf8(eventDataObject.data);
                     }
 
-                    if (messageObject.tag === "cws_download") {
-                        messageTagDownload = messageObject.tag;
+                    if (eventDataObject.tag === "cws_download") {
+                        messageTagDownload = eventDataObject.tag;
                     }
 
-                    this.handleReceiveData(messageObject.tag, messageObject.data);
+                    this.handleReceiveData(eventDataObject.tag, eventDataObject.data);
                 } else if (typeof event.data !== "string" && messageTagDownload) {
-                    const view = new DataView(event.data);
+                    const dataView = new DataView(event.data);
 
-                    this.handleReceiveData(messageTagDownload, view);
+                    this.handleReceiveData(messageTagDownload, dataView);
 
                     messageTagDownload = "";
                 }

@@ -274,31 +274,31 @@ export default class Manager {
             socket.on("data", (data: Buffer) => {
                 this.handleFrame(clientId, data, (clientOpCode, clientFragmentList) => {
                     if (clientOpCode === 1) {
-                        const messageConcat = Buffer.concat(clientFragmentList).toString();
+                        const clientFragment = Buffer.concat(clientFragmentList).toString();
 
-                        if (!messageConcat.trim()) {
+                        if (!clientFragment.trim()) {
                             return;
                         }
 
-                        if (!helperSrc.isJson(messageConcat)) {
+                        if (!helperSrc.isJson(clientFragment)) {
                             return;
                         }
 
-                        const messageObject: model.Imessage = JSON.parse(messageConcat);
+                        const clientFragmentObject = JSON.parse(clientFragment) as model.Imessage;
 
-                        if (!messageObject || typeof messageObject.tag !== "string") {
+                        if (!clientFragmentObject || typeof clientFragmentObject.tag !== "string") {
                             return;
                         }
 
-                        if (messageObject.tag === "cws_upload") {
-                            messageTagUpload = messageObject.tag;
-                        } else if (messageObject.tag === "cws_broadcast") {
-                            this.sendDataBroadcast(messageObject.data, clientId);
-                        } else if (messageObject.tag === "cws_disconnect") {
+                        if (clientFragmentObject.tag === "cws_upload") {
+                            messageTagUpload = clientFragmentObject.tag;
+                        } else if (clientFragmentObject.tag === "cws_broadcast") {
+                            this.sendDataBroadcast(clientFragmentObject.data, clientId);
+                        } else if (clientFragmentObject.tag === "cws_disconnect") {
                             this.clientDisconnection(clientId);
                         }
 
-                        this.handleReceiveData(messageObject.tag, messageObject.data, clientId);
+                        this.handleReceiveData(clientFragmentObject.tag, clientFragmentObject.data, clientId);
                     } else if ((clientOpCode === 0 || clientOpCode === 2) && messageTagUpload) {
                         this.handleReceiveData(messageTagUpload, clientFragmentList, clientId);
 

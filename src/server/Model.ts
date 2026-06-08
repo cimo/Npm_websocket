@@ -5,6 +5,12 @@ import * as Net from "net";
 export { Http as IhttpServer };
 export { Https as IhttpsServer };
 
+export type TreceiveData = string | Buffer[];
+
+export type TreceiveDataDownalod = { mimeType: string; fileName: string } | Buffer[];
+
+export type TsendData = string | Record<string, unknown> | Buffer;
+
 export interface Iclient {
     id: string;
     signature: string;
@@ -45,7 +51,3 @@ export interface ImessageDirect {
     fromClientId: string;
     toClientId: string;
 }
-
-export type TreceiveData = string | Buffer[];
-export type TreceiveDataDownalod = { mimeType: string; fileName: string } | Buffer[];
-export type TsendData = string | Record<string, unknown> | Buffer;
