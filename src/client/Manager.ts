@@ -53,7 +53,7 @@ export default class Manager {
                         return;
                     }
 
-                    if (!helperSrc.isJson(eventData)) {
+                    if (!helperSrc.jsonCheck(eventData)) {
                         return;
                     }
 
@@ -193,7 +193,7 @@ export default class Manager {
                 if (typeof data === "string") {
                     const decoded = helperSrc.base64ToUtf8(data);
 
-                    resultData = !helperSrc.isJson(decoded) ? (decoded as T) : (JSON.parse(decoded) as T);
+                    resultData = !helperSrc.jsonCheck(decoded) ? (decoded as T) : (JSON.parse(decoded) as T);
                 } else {
                     resultData = data as T;
                 }

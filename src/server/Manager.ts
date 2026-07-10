@@ -280,7 +280,7 @@ export default class Manager {
                             return;
                         }
 
-                        if (!helperSrc.isJson(clientFragment)) {
+                        if (!helperSrc.jsonCheck(clientFragment)) {
                             return;
                         }
 
@@ -455,7 +455,7 @@ export default class Manager {
                 if (typeof data === "string") {
                     const decoded = Buffer.from(data, "base64").toString();
 
-                    resultData = !helperSrc.isJson(decoded) ? (decoded as T) : (JSON.parse(decoded) as T);
+                    resultData = !helperSrc.jsonCheck(decoded) ? (decoded as T) : (JSON.parse(decoded) as T);
                 } else {
                     resultData = data as T;
                 }

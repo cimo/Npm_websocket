@@ -3,7 +3,7 @@ export const writeLog = (tag: string, value: string | Record<string, unknown> | 
     console.log(`WriteLog => ${tag}: `, value);
 };
 
-export const isJson = (value: string): boolean => {
+export const jsonCheck = (value: string): boolean => {
     try {
         JSON.parse(value);
 
