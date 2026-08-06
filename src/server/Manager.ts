@@ -131,15 +131,15 @@ export default class Manager {
     };
 
     private responseHeader = (request: model.IhttpServer.IncomingMessage): string[] => {
-        const secretKey = request.headers["sec-websocket-key"];
+        const websocketKey = request.headers["sec-websocket-key"];
 
-        if (!secretKey || secretKey.trim() === "") {
+        if (!websocketKey || websocketKey.trim() === "") {
             helperSrc.writeLog("@cimo/webSocket - Server - Manager.ts - responseHeader()", "Invalid Sec-WebSocket-Key header!");
 
             return [];
         }
 
-        const hash = Crypto.createHash("sha1").update(`${secretKey}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
+        const hash = Crypto.createHash("sha1").update(`${websocketKey}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
 
         return ["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${hash}`, "\r\n"];
     };
