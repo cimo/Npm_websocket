@@ -19,6 +19,7 @@ Writed with native Typescript code and no dependencies are used.
 1. Delete this from the root:
     - dist
     - node_modules
+    - package-lock.json
 
 ## Server
 - Server.ts
